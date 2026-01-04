@@ -1,0 +1,10 @@
+﻿2025-03-15T10:00:10Z INFO gateway: GET /health 200 4ms cid=c-300
+2025-03-15T10:00:20Z INFO gateway: GET /items 200 32ms cid=c-301
+2025-03-15T10:00:25Z INFO gateway: POST /items 201 58ms cid=c-302
+2025-03-15T10:00:30Z INFO gateway: GET /items/1 200 21ms cid=c-302
+2025-03-15T10:01:12Z WARN gateway: GET /items 504 1200ms cid=c-303
+2025-03-15T10:01:13Z ERROR gateway: upstream timeout service=api cid=c-303
+2025-03-15T10:01:14Z INFO gateway: GET /health 200 5ms cid=c-304
+2025-03-15T10:01:40Z INFO gateway: POST /items 201 62ms cid=c-305
+2025-03-15T10:02:00Z WARN gateway: GET /items 500 900ms cid=c-306
+2025-03-15T10:02:05Z INFO gateway: GET /health 200 4ms cid=c-307

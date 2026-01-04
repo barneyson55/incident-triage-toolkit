@@ -1,0 +1,10 @@
+﻿{"timestamp":"2025-03-15T10:00:00Z","level":"INFO","component":"api","message":"service boot","correlation_id":"c-100"}
+{"timestamp":"2025-03-15T10:00:01Z","level":"INFO","component":"api","message":"loaded config","correlation_id":"c-100"}
+{"timestamp":"2025-03-15T10:00:05Z","level":"INFO","component":"worker","message":"job queue ready","correlation_id":"c-101"}
+{"timestamp":"2025-03-15T10:01:10Z","level":"WARN","component":"db","message":"connection pool near limit","correlation_id":"c-102"}
+{"timestamp":"2025-03-15T10:01:12Z","level":"ERROR","component":"db","message":"timeout acquiring connection","correlation_id":"c-102"}
+{"timestamp":"2025-03-15T10:01:15Z","level":"ERROR","component":"api","message":"request failed: upstream timeout","correlation_id":"c-103"}
+{"timestamp":"2025-03-15T10:02:00Z","level":"INFO","component":"api","message":"retrying failed request","correlation_id":"c-103"}
+{"timestamp":"2025-03-15T10:02:10Z","level":"INFO","component":"worker","message":"job completed","correlation_id":"c-104"}
+{"timestamp":"2025-03-15T10:02:30Z","level":"WARN","component":"cache","message":"cache miss rate elevated","correlation_id":"c-105"}
+{"timestamp":"2025-03-15T10:03:05Z","level":"ERROR","component":"api","message":"validation error for payload id=7821","correlation_id":"c-106"}

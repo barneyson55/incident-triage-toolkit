@@ -1,0 +1,12 @@
+﻿2025-03-15T10:00:00Z INFO api: starting listener cid=c-200
+2025-03-15T10:00:02Z INFO api: bound to port 8000 cid=c-200
+2025-03-15T10:00:05Z INFO api: warmup completed cid=c-200
+2025-03-15T10:01:01Z WARN cache: miss spike detected cid=c-201
+2025-03-15T10:01:05Z INFO db: connected to primary cid=c-202
+2025-03-15T10:01:08Z ERROR db: query timeout after 1200ms cid=c-202
+2025-03-15T10:01:12Z ERROR api: failed request: upstream error cid=c-203
+2025-03-15T10:01:20Z INFO api: retry succeeded cid=c-203
+2025-03-15T10:01:35Z WARN api: elevated latency p95=840ms cid=c-204
+2025-03-15T10:02:10Z INFO worker: job started cid=c-205
+2025-03-15T10:02:30Z ERROR worker: job failed cid=c-205
+2025-03-15T10:03:00Z INFO api: steady state cid=c-206
