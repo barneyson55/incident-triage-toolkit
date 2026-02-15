@@ -1,4 +1,6 @@
-﻿# Incident Triage Toolkit
+# Incident Triage Toolkit
+
+[![CI](https://github.com/barneyson55/incident-triage-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/barneyson55/incident-triage-toolkit/actions/workflows/ci.yml)
 
 A Python CLI to parse heterogeneous logs, generate an incident timeline, and
 draft an RCA/runbook skeleton. It supports JSON lines and plain text log
@@ -10,15 +12,28 @@ triage.
 - Identify error patterns and suspected components faster.
 - Produce a consistent runbook skeleton for handoffs and follow-ups.
 
+## Quickstart (Linux/macOS / WSL)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install -e ".[dev]"
+
+triage parse samples/app.log --out parsed.json
+triage timeline samples/app.log --out timeline.md
+triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
+```
+
 ## Quickstart (PowerShell)
 ```powershell
 py -3.11 -m venv .venv
 . .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt -r requirements-dev.txt
 
-python -m triage_toolkit.cli parse samples/app.log --out parsed.json
-python -m triage_toolkit.cli timeline samples/app.log --out timeline.md
-python -m triage_toolkit.cli runbook samples/app.log --out runbook.md --title "Incident: Sample"
+python -m pip install -e ".[dev]"
+
+triage parse samples/app.log --out parsed.json
+triage timeline samples/app.log --out timeline.md
+triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 ```
 
 ## CLI Commands
@@ -26,7 +41,7 @@ python -m triage_toolkit.cli runbook samples/app.log --out runbook.md --title "I
 - `triage timeline <path> --out timeline.md`
 - `triage runbook <path> --out runbook.md --title "Incident: ..."`
 
-## Makefile
+## Makefile (Linux/macOS / WSL)
 ```bash
 make setup
 make lint
@@ -35,5 +50,6 @@ make run
 ```
 
 ## Notes
-- Use `python -m triage_toolkit` as a portable entrypoint if you do not have a
-  `triage` console script installed.
+- You can always run the CLI without the console script:
+  - `python -m triage_toolkit.cli ...`
+  - `python -m triage_toolkit ...`

@@ -1,15 +1,19 @@
-﻿PYTHON?=python
+PYTHON ?= python3
+VENV ?= .venv
+VENV_PY := $(VENV)/bin/python
 
 setup:
-	$(PYTHON) -m venv .venv
-	@echo "Activate with: .venv\\Scripts\\Activate.ps1 (PowerShell) or source .venv/Scripts/activate (Git Bash)"
-	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
+	$(PYTHON) -m venv $(VENV)
+	$(VENV_PY) -m pip install -U pip
+	$(VENV_PY) -m pip install -e .[dev]
+	@echo "Activated venv (Linux/macOS): source $(VENV)/bin/activate"
+	@echo "Windows PowerShell: . $(VENV)\\Scripts\\Activate.ps1"
 
 lint:
-	$(PYTHON) -m ruff check .
+	$(VENV_PY) -m ruff check .
 
 test:
-	$(PYTHON) -m pytest
+	$(VENV_PY) -m pytest
 
 run:
-	$(PYTHON) -m triage_toolkit.cli timeline samples/app.log --out timeline.md
+	$(VENV_PY) -m triage_toolkit.cli timeline samples/app.log --out timeline.md
