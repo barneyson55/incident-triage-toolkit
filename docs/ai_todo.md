@@ -2,7 +2,7 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/deep_research_auto.md` (2026-02-16 23:05 UTC).
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` review (2026-02-17 04:19 UTC), with architectural context from `docs/deep_research_auto.md`.
 
 - [x] ITK-004 (P0): Add parse-quality gate to prevent silent data loss
   - Why (impact): parser currently drops unparseable lines silently; triage output can look valid while being incomplete.
@@ -28,25 +28,36 @@ Priority refresh basis: `docs/deep_research_auto.md` (2026-02-16 23:05 UTC).
     - `pytest -q tests/test_runbook.py -k "utc or timezone"`
     - `make lint && make test`
 
+- [x] ITK-009 (P1): Apply parse-quality gates to `timeline` and `runbook` commands
+  - Why (impact): `parse --strict` now protects JSON output, but `timeline`/`runbook` still consume silently dropped lines and can produce confident-looking artifacts from partial input.
+  - DoD:
+    - Add `--strict` and `--max-drop-ratio <0..1>` to `triage timeline` and `triage runbook` with semantics matching `triage parse`.
+    - Reuse the same strict-failure messages (including deterministic `parse_summary`) for all commands.
+    - Keep default behavior backward-compatible (strict opt-in only).
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "timeline_strict or runbook_strict"`
+    - `pytest -q tests/test_cli.py -k "drop_ratio and (timeline or runbook)"`
+    - `make lint && make test`
+
 - [ ] ITK-005 (P1): Refactor ingestion to stream line-by-line (large-file safe)
   - Why (impact): current `Path.read_text().splitlines()` loads the full input into memory.
   - DoD:
-    - Replace full-file read with streaming iteration while preserving parse order.
-    - Preserve current UTF-8 + I/O error semantics in CLI.
-    - Add regression test on large synthetic input to validate correctness under streaming path.
+    - Replace eager full-file reads with streaming iteration while preserving parse order.
+    - Preserve current UTF-8 decode and I/O error behavior surfaced by CLI.
+    - Add a regression that validates the streaming path on a large synthetic input and confirms parse counters remain correct.
   - Verification:
     - `pytest -q tests/test_parser.py -k "stream or large"`
     - `pytest -q tests/test_cli.py -k "io or utf8"`
     - `make lint && make test`
 
 - [ ] ITK-008 (P1): Expand regression depth and enforce coverage floor in CI
-  - Why (impact): parser/UTC/streaming changes widen regression surface beyond current 7 tests.
+  - Why (impact): parser/UTC/strict/streaming changes widen regression surface beyond current tests; CI should prevent silent quality erosion.
   - DoD:
-    - Add edge-case fixture matrix (invalid lines, mixed formats, multiline noise, timezone variants).
-    - Add coverage reporting for `triage_toolkit` and enforce a minimum threshold in CI (via `pytest-cov` / fail-under).
+    - Add edge-case fixture matrix (invalid lines, mixed formats, multiline noise, timezone variants, correlation-id extraction variants).
+    - Add coverage reporting for `triage_toolkit` and enforce `--cov-fail-under=85` in CI.
     - CI must fail when coverage is below threshold.
   - Verification:
-    - `pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=<threshold>`
+    - `pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=85`
     - GitHub Actions CI run shows expected pass/fail behavior for coverage gate.
     - `make lint && make test`
 
@@ -54,8 +65,8 @@ Priority refresh basis: `docs/deep_research_auto.md` (2026-02-16 23:05 UTC).
   - Why (impact): current outputs are human-readable but weak for ticketing/alert enrichment automation.
   - DoD:
     - Add deterministic summary surface (new command or option) with keys: incident window, event count, error count, top components, top error signatures, correlation-id coverage.
-    - Keep schema stable and documented in README.
-    - Add CLI tests asserting schema keys and deterministic ordering.
+    - Keep schema stable/versioned and documented in README.
+    - Add CLI tests asserting schema keys, deterministic ordering, and UTC-normalized timestamps in summary output.
   - Verification:
     - `pytest -q tests/test_cli.py -k "summary"`
     - `pytest -q tests/test_timeline.py -k "signature"`

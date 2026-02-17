@@ -110,6 +110,103 @@ def test_parse_strict_accepts_drop_ratio_within_limit(tmp_path):
     assert payload["parse_summary"]["drop_ratio"] == 0.5
 
 
+def test_timeline_strict_fails_when_no_parsed_lines(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text("not a log line\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["timeline", str(sample), "--out", "-", "--strict"])
+
+    assert result.exit_code == 2
+    assert "Strict parse gate failed: parsed_lines == 0" in result.output
+
+
+def test_runbook_strict_fails_when_drop_ratio_exceeds_threshold(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: ok",
+                "not a log line",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "runbook",
+            str(sample),
+            "--out",
+            "-",
+            "--strict",
+            "--max-drop-ratio",
+            "0.25",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.250000" in result.output
+
+
+def test_timeline_drop_ratio_strict_accepts_threshold(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: ok",
+                "not a log line",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "timeline",
+            str(sample),
+            "--out",
+            "-",
+            "--strict",
+            "--max-drop-ratio",
+            "0.5",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "# Incident Timeline" in result.stdout
+
+
+def test_runbook_drop_ratio_strict_accepts_threshold(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: ok",
+                "not a log line",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "runbook",
+            str(sample),
+            "--out",
+            "-",
+            "--strict",
+            "--max-drop-ratio",
+            "0.5",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "# Incident: Untitled" in result.stdout
+
+
 def test_parse_stdout_normalizes_offset_timestamp_to_utc(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text("2025-01-01T02:00:01+02:00 INFO api: hello cid=c-1\n", encoding="utf-8")

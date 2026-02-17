@@ -149,9 +149,25 @@ def parse(
 def timeline(
     path: Path,
     out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Fail with non-zero exit code when parse quality gates are violated.",
+    ),
+    max_drop_ratio: float = typer.Option(
+        1.0,
+        "--max-drop-ratio",
+        min=0.0,
+        max=1.0,
+        help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
+    ),
 ) -> None:
     """Generate a timeline markdown file from logs."""
-    events = _read_events(path)
+    events, summary = _read_events_with_summary(path)
+    strict_error = _strict_parse_error(summary, max_drop_ratio) if strict else None
+    if strict_error:
+        _fail(strict_error)
+
     content = build_timeline(events)
     _write_output(out, content)
     if out != "-":
@@ -163,9 +179,25 @@ def runbook(
     path: Path,
     out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
     title: str = typer.Option("Incident: Untitled", "--title"),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Fail with non-zero exit code when parse quality gates are violated.",
+    ),
+    max_drop_ratio: float = typer.Option(
+        1.0,
+        "--max-drop-ratio",
+        min=0.0,
+        max=1.0,
+        help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
+    ),
 ) -> None:
     """Generate a runbook skeleton from logs."""
-    events = _read_events(path)
+    events, summary = _read_events_with_summary(path)
+    strict_error = _strict_parse_error(summary, max_drop_ratio) if strict else None
+    if strict_error:
+        _fail(strict_error)
+
     content = build_runbook(events, title)
     _write_output(out, content)
     if out != "-":
