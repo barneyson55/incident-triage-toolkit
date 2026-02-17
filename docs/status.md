@@ -9,28 +9,28 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- Completed ITK-004 (parse-quality gate to prevent silent data loss):
-  - Updated `triage_toolkit/parser.py` to add deterministic parse-quality telemetry:
-    - `total_lines`, `parsed_lines`, `dropped_lines`, `drop_ratio`
-    - dropped-reason buckets (`blank_line`, `invalid_json`, `json_not_object`, `missing_timestamp`, `invalid_timestamp`, `unrecognized_text`)
-    - new helpers: `parse_line_with_reason`, `parse_lines_with_summary`, `parse_file_with_summary`
-  - Updated `triage_toolkit/cli.py`:
-    - `triage parse --strict`
-    - `triage parse --max-drop-ratio <0..1>`
-    - strict mode exits non-zero when `parsed_lines == 0` or drop ratio exceeds threshold
-    - parse output now includes deterministic `parse_summary` alongside `events`
-  - Expanded tests:
-    - `tests/test_parser.py` for stats + dropped reasons
-    - `tests/test_cli.py` for strict-mode and drop-ratio gate behavior
+- Completed ITK-006 (normalize outputs to UTC and accept offset-heavy text logs):
+  - Updated `triage_toolkit/utils.py`:
+    - all parsed datetimes are now normalized to UTC (`+00:00`) before returning
+    - applies to `Z`, `+HH:MM`, `-HH:MM`, and naive timestamps (assumed UTC)
+  - Updated `triage_toolkit/parser.py`:
+    - text-log timestamp regex now accepts RFC3339 offsets (`+HH:MM`, `-HH:MM`) in addition to `Z`
+  - Expanded regression coverage:
+    - `tests/test_parser.py`: offset parsing + UTC normalization for text and JSON lines
+    - `tests/test_timeline.py`: mixed-offset ordering and rendered UTC timeline output
+    - `tests/test_runbook.py`: UTC-normalized "First observed" rendering
+    - `tests/test_cli.py`: parse JSON output emits UTC-normalized timestamps
 - Why:
-  - Prevents silent data loss and makes parse quality visible + enforceable in automation.
+  - Removes mixed-timezone ambiguity so parse output, timeline, and runbook all represent a single UTC timeline.
 - Risks / follow-ups:
-  - Parse command output shape now includes `{ "events": [...], "parse_summary": {...} }`; downstream consumers expecting a bare list should adjust.
+  - UTC normalization now rewrites non-UTC input offsets in emitted output, which may affect downstream expectations if raw offsets were previously relied upon.
 - Local verification executed:
-  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "stats or dropped"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "strict or drop_ratio"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "timezone or offset"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "utc or timezone"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "utc or timezone"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "offset or timezone"` ✅
   - `make lint` ✅
-  - `make test` ✅ (12 passed)
+  - `make test` ✅ (17 passed)
 
 ## Next
-- ITK-006 (P0): Normalize outputs to UTC and accept offset-heavy text logs.
+- ITK-005 (P1): Refactor ingestion to stream line-by-line (large-file safe).

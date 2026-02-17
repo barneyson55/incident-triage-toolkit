@@ -110,6 +110,17 @@ def test_parse_strict_accepts_drop_ratio_within_limit(tmp_path):
     assert payload["parse_summary"]["drop_ratio"] == 0.5
 
 
+def test_parse_stdout_normalizes_offset_timestamp_to_utc(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text("2025-01-01T02:00:01+02:00 INFO api: hello cid=c-1\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["parse", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["events"][0]["timestamp"] == "2025-01-01T00:00:01+00:00"
+
+
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
 

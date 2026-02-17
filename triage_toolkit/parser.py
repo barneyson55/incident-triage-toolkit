@@ -14,7 +14,9 @@ _LEVEL_KEYS = ["level", "severity", "lvl"]
 _COMPONENT_KEYS = ["component", "service", "logger"]
 _MESSAGE_KEYS = ["message", "msg", "event"]
 
-_TEXT_TS_RE = re.compile(r"^(?P<ts>\d{4}-\d{2}-\d{2}[T ][0-9:.]{8,}Z?)\s+(?P<rest>.*)$")
+_TEXT_TS_RE = re.compile(
+    r"^(?P<ts>\d{4}-\d{2}-\d{2}[T ][0-9:.]{8,}(?:Z|[+-]\d{2}:\d{2})?)\s+(?P<rest>.*)$"
+)
 _LEVEL_RE = re.compile(r"^(?:\[(?P<bracket>[A-Z]+)\]|(?P<plain>[A-Z]+))\s+(?P<rest>.*)$")
 _COMPONENT_RE = re.compile(r"^(?P<component>[A-Za-z0-9_.-]+):\s*(?P<message>.*)$")
 

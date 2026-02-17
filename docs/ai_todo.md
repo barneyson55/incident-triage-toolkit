@@ -16,7 +16,7 @@ Priority refresh basis: `docs/deep_research_auto.md` (2026-02-16 23:05 UTC).
     - `pytest -q tests/test_cli.py -k "strict or drop_ratio"`
     - `make lint && make test`
 
-- [ ] ITK-006 (P0): Normalize outputs to UTC and accept offset-heavy text logs
+- [x] ITK-006 (P0): Normalize outputs to UTC and accept offset-heavy text logs
   - Why (impact): timeline labels times as UTC, but text-log parsing and emitted timestamps can currently preserve mixed offsets.
   - DoD:
     - Extend text-log timestamp parsing to accept RFC3339-style offsets (`+HH:MM`, `-HH:MM`) in addition to `Z`.

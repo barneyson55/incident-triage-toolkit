@@ -56,3 +56,22 @@ def test_parse_dropped_reason_for_invalid_json():
     event, reason = parse_line_with_reason('{"timestamp":')
     assert event is None
     assert reason == "invalid_json"
+
+
+def test_parse_text_line_accepts_offset_and_normalizes_to_utc():
+    line = "2025-01-01T02:00:02+02:00 [WARN] api: slow response cid=abc-1"
+    event = parse_line(line)
+
+    assert event is not None
+    assert event.timestamp.isoformat() == "2025-01-01T00:00:02+00:00"
+
+
+def test_parse_json_line_normalizes_negative_offset_to_utc():
+    line = (
+        '{"timestamp":"2024-12-31T19:00:07-05:00","level":"ERROR",'
+        '"component":"api","message":"failed"}'
+    )
+    event = parse_line(line)
+
+    assert event is not None
+    assert event.timestamp.isoformat() == "2025-01-01T00:00:07+00:00"
