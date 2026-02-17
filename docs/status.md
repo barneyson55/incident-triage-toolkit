@@ -9,28 +9,16 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- Completed ITK-006 (normalize outputs to UTC and accept offset-heavy text logs):
-  - Updated `triage_toolkit/utils.py`:
-    - all parsed datetimes are now normalized to UTC (`+00:00`) before returning
-    - applies to `Z`, `+HH:MM`, `-HH:MM`, and naive timestamps (assumed UTC)
-  - Updated `triage_toolkit/parser.py`:
-    - text-log timestamp regex now accepts RFC3339 offsets (`+HH:MM`, `-HH:MM`) in addition to `Z`
-  - Expanded regression coverage:
-    - `tests/test_parser.py`: offset parsing + UTC normalization for text and JSON lines
-    - `tests/test_timeline.py`: mixed-offset ordering and rendered UTC timeline output
-    - `tests/test_runbook.py`: UTC-normalized "First observed" rendering
-    - `tests/test_cli.py`: parse JSON output emits UTC-normalized timestamps
-- Why:
-  - Removes mixed-timezone ambiguity so parse output, timeline, and runbook all represent a single UTC timeline.
-- Risks / follow-ups:
-  - UTC normalization now rewrites non-UTC input offsets in emitted output, which may affect downstream expectations if raw offsets were previously relied upon.
-- Local verification executed:
-  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "timezone or offset"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "utc or timezone"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "utc or timezone"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "offset or timezone"` ✅
-  - `make lint` ✅
-  - `make test` ✅ (17 passed)
+- Completed ITK-008 (expand regression matrix + raise CI confidence margin):
+  - Added CLI failure-path coverage for directory input, UTF-8 decode failures, unreadable/generic read errors, output write failures, and non-stdout write success paths.
+  - Added parser dropped-reason edge coverage (`json_not_object`, `invalid_timestamp` text path, `unknown` fallback) and wrapper-path tests.
+  - Added utils timestamp edge coverage (invalid, naive, and offset variants with UTC normalization).
+  - Raised CI coverage floor from 85 → 88 (`.github/workflows/ci.yml`).
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "missing_file or directory or utf8 or write or strict or drop_ratio"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "invalid_json or json_not_object or missing_timestamp or invalid_timestamp or offset or timezone"` ✅
+  - `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88` ✅ (98.24%)
+  - `make lint && make test` ✅ (47 passed)
 
 ## Next
-- ITK-005 (P1): Refactor ingestion to stream line-by-line (large-file safe).
+- ITK-010 (P1): Preserve timezone provenance while keeping UTC as canonical output.

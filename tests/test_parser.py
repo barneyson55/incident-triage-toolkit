@@ -1,6 +1,13 @@
 from pathlib import Path
 
-from triage_toolkit.parser import parse_file_with_summary, parse_line, parse_line_with_reason
+import triage_toolkit.parser as parser_module
+from triage_toolkit.parser import (
+    parse_file_with_summary,
+    parse_json_line,
+    parse_line,
+    parse_line_with_reason,
+    parse_text_line,
+)
 
 
 def test_parse_json_line():
@@ -58,6 +65,42 @@ def test_parse_dropped_reason_for_invalid_json():
     event, reason = parse_line_with_reason('{"timestamp":')
     assert event is None
     assert reason == "invalid_json"
+
+
+def test_parse_dropped_reason_for_json_not_object():
+    event, reason = parser_module._parse_json_line_with_reason('["not", "an", "object"]')
+    assert event is None
+    assert reason == "json_not_object"
+
+
+def test_parse_text_line_invalid_timestamp_reason():
+    event, reason = parse_line_with_reason("2025-99-01T00:00:02Z INFO api: broken timestamp")
+    assert event is None
+    assert reason == "invalid_timestamp"
+
+
+def test_parse_line_with_reason_uses_unknown_fallback(monkeypatch):
+    monkeypatch.setattr(parser_module, "_parse_text_line_with_reason", lambda _line: (None, None))
+
+    event, reason = parse_line_with_reason("2025-01-01T00:00:01Z INFO api: hello")
+
+    assert event is None
+    assert reason == "unknown"
+
+
+def test_parse_json_line_wrapper_exposes_event():
+    line = '{"timestamp":"2025-01-01T00:00:01Z","component":"api","message":"ok"}'
+    event = parse_json_line(line)
+
+    assert event is not None
+    assert event.component == "api"
+
+
+def test_parse_text_line_wrapper_exposes_event():
+    event = parse_text_line("2025-01-01T00:00:02Z INFO api: started")
+
+    assert event is not None
+    assert event.level == "INFO"
 
 
 def test_parse_text_line_accepts_offset_and_normalizes_to_utc():
