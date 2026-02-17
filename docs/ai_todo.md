@@ -2,7 +2,7 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current `docs/ai_todo.md` review (2026-02-17 09:12 UTC), incorporating completed ITK-006/ITK-009 and the UTC-compatibility follow-up risk noted in `docs/status.md`.
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current code/test evidence deep-research pass (2026-02-17 12:13 UTC), after completed ITK-004/ITK-006/ITK-009.
 
 - [x] ITK-004 (P0): Add parse-quality gate to prevent silent data loss
   - Why (impact): parser currently drops unparseable lines silently; triage output can look valid while being incomplete.
@@ -39,45 +39,46 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current `do
     - `pytest -q tests/test_cli.py -k "drop_ratio and (timeline or runbook)"`
     - `make lint && make test`
 
-- [ ] ITK-008 (P1): Expand regression depth and enforce coverage floor in CI
-  - Why (impact): parser/UTC/strict changes are now foundational behavior; without a stronger CI gate, future refactors can regress correctness silently.
+- [x] ITK-005 (P0): Refactor ingestion to stream line-by-line (large-file safe)
+  - Why (impact): `parse_file_with_summary()` still uses eager full-file load (`read_text().splitlines()`), which is the largest current scalability and memory-risk bottleneck.
   - DoD:
-    - Add edge-case fixture matrix (invalid lines, mixed formats, multiline noise, timezone variants, correlation-id extraction variants).
-    - Add coverage reporting for `triage_toolkit` and enforce `--cov-fail-under=85` in CI.
-    - Ensure parser/timeline/runbook strict+UTC behavior has deterministic assertions in CLI-level tests.
-  - Verification:
-    - `pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=85`
-    - `pytest -q tests/test_cli.py -k "strict or drop_ratio or timezone"`
-    - `make lint && make test`
-
-- [ ] ITK-005 (P1): Refactor ingestion to stream line-by-line (large-file safe)
-  - Why (impact): current `Path.read_text().splitlines()` loads the full input into memory and is the main scalability limit.
-  - DoD:
-    - Replace eager full-file reads with streaming iteration while preserving parse order.
+    - Replace eager whole-file reads with streaming iteration while preserving parse order.
+    - Keep deterministic parse-summary behavior identical for existing fixtures.
     - Preserve current UTF-8 decode and I/O error behavior surfaced by CLI.
-    - Add regression coverage validating streaming path on large synthetic input and confirming parse counters/strict-gate outcomes remain correct.
+    - Add regression coverage for large synthetic input and strict-gate outcomes on streamed input.
   - Verification:
-    - `pytest -q tests/test_parser.py -k "stream or large"`
+    - `pytest -q tests/test_parser.py -k "stream or large or splitlines"`
     - `pytest -q tests/test_cli.py -k "io or utf8 or strict"`
     - `make lint && make test`
 
 - [ ] ITK-010 (P1): Preserve timezone provenance while keeping UTC as canonical output
-  - Why (impact): UTC normalization fixed ordering, but it can break downstream consumers that relied on original source offsets.
+  - Why (impact): UTC normalization fixed ordering, but it can break downstream consumers that relied on original source offsets/timezone form.
   - DoD:
-    - Keep normalized UTC `timestamp` as the canonical output field.
+    - Keep normalized UTC `timestamp` as canonical output.
     - Add deterministic provenance field(s) in parse JSON events for source timezone context (for example `source_timestamp` / `source_offset`).
     - Ensure timeline/runbook outputs remain UTC-first and unaffected by provenance metadata.
-    - Document schema and backward-compatibility expectations in README.
+    - Document parse-event schema and backward-compatibility expectations in README.
   - Verification:
-    - `pytest -q tests/test_parser.py -k "provenance or source_offset"`
+    - `pytest -q tests/test_parser.py -k "provenance or source_offset or source_timestamp"`
     - `pytest -q tests/test_cli.py -k "parse and timezone and provenance"`
+    - `make lint && make test`
+
+- [ ] ITK-008 (P1): Expand regression matrix and raise CI confidence above the minimum floor
+  - Why (impact): CI already enforces `--cov-fail-under=85`, but current total coverage has narrow headroom and key CLI/file-error branches remain under-tested.
+  - DoD:
+    - Add edge-case fixture matrix (invalid lines, mixed formats, multiline noise, timezone variants, correlation-id extraction variants, JSON non-object lines).
+    - Add targeted CLI tests for read/write/decode failure paths and strict-threshold edge behavior.
+    - After expanding tests, raise CI coverage gate from 85 to at least 88 (with a documented path toward 90).
+  - Verification:
+    - `pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88`
+    - `pytest -q tests/test_cli.py -k "strict or drop_ratio or output or missing_file or utf8"`
     - `make lint && make test`
 
 - [ ] ITK-007 (P2): Add machine-readable incident summary output for automation
   - Why (impact): current outputs are human-readable but weak for ticketing/alert enrichment automation.
   - DoD:
     - Add deterministic summary surface (new command or option) with keys: incident window, event count, error count, top components, top error signatures, correlation-id coverage.
-    - Keep schema stable/versioned and documented in README.
+    - Include a schema version field and document stability/ordering guarantees in README.
     - Add CLI tests asserting schema keys, deterministic ordering, and UTC-normalized timestamps in summary output.
   - Verification:
     - `pytest -q tests/test_cli.py -k "summary"`

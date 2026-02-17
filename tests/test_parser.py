@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from triage_toolkit.parser import parse_file_with_summary, parse_line, parse_line_with_reason
 
 
@@ -75,3 +77,41 @@ def test_parse_json_line_normalizes_negative_offset_to_utc():
 
     assert event is not None
     assert event.timestamp.isoformat() == "2025-01-01T00:00:07+00:00"
+
+
+def test_parse_file_stream_does_not_call_read_text(tmp_path, monkeypatch):
+    sample = tmp_path / "sample.log"
+    sample.write_text("2025-01-01T00:00:01Z INFO api: ok\n", encoding="utf-8")
+
+    def _fail_read_text(self: Path, *args, **kwargs):
+        raise AssertionError("parse_file_with_summary should stream lines, not call read_text")
+
+    monkeypatch.setattr(Path, "read_text", _fail_read_text)
+
+    events, summary = parse_file_with_summary(sample)
+
+    assert len(events) == 1
+    assert summary["total_lines"] == 1
+    assert summary["parsed_lines"] == 1
+
+
+def test_parse_file_stream_large_input_summary(tmp_path):
+    sample = tmp_path / "large.log"
+    valid_line = "2025-01-01T00:00:00Z INFO api: ok cid=c-1\n"
+    invalid_line = "not a log line\n"
+
+    with sample.open("w", encoding="utf-8") as handle:
+        for _ in range(5_000):
+            handle.write(valid_line)
+            handle.write(invalid_line)
+
+    events, summary = parse_file_with_summary(sample)
+
+    assert len(events) == 5_000
+    assert summary == {
+        "total_lines": 10_000,
+        "parsed_lines": 5_000,
+        "dropped_lines": 5_000,
+        "drop_ratio": 0.5,
+        "dropped_reasons": {"unrecognized_text": 5_000},
+    }

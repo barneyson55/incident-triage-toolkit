@@ -4,7 +4,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from .models import LogEvent
 from .utils import extract_correlation_id, parse_timestamp
@@ -180,9 +180,15 @@ def parse_lines_with_summary(lines: Iterable[str]) -> tuple[list[LogEvent], dict
     return events, summary
 
 
+def _iter_file_lines(path: Path) -> Iterator[str]:
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            yield line.rstrip("\n")
+
+
 def parse_file_with_summary(path: str | Path) -> tuple[list[LogEvent], dict[str, Any]]:
     path = Path(path)
-    return parse_lines_with_summary(path.read_text(encoding="utf-8").splitlines())
+    return parse_lines_with_summary(_iter_file_lines(path))
 
 
 def parse_file(path: str | Path) -> list[LogEvent]:

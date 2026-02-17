@@ -110,6 +110,33 @@ def test_parse_strict_accepts_drop_ratio_within_limit(tmp_path):
     assert payload["parse_summary"]["drop_ratio"] == 0.5
 
 
+def test_parse_strict_stream_large_input_fails_when_drop_ratio_exceeds_threshold(tmp_path):
+    sample = tmp_path / "large.log"
+    valid_line = "2025-01-01T00:00:01Z INFO api: ok\n"
+    invalid_line = "not a log line\n"
+
+    with sample.open("w", encoding="utf-8") as handle:
+        for _ in range(2_000):
+            handle.write(valid_line)
+            handle.write(invalid_line)
+
+    result = runner.invoke(
+        app,
+        [
+            "parse",
+            str(sample),
+            "--out",
+            "-",
+            "--strict",
+            "--max-drop-ratio",
+            "0.49",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
+
+
 def test_timeline_strict_fails_when_no_parsed_lines(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text("not a log line\n", encoding="utf-8")
