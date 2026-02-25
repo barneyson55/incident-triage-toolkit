@@ -146,6 +146,22 @@ def test_parse_json_line_provenance_has_null_offset_for_naive_timestamp():
     assert event.to_dict()["source_offset"] is None
 
 
+def test_parse_event_contract_keys_are_stable_for_current_schema_version():
+    line = '{"timestamp":"2025-01-01T00:00:01Z","component":"api","message":"ok"}'
+    event = parse_line(line)
+
+    assert event is not None
+    assert set(event.to_dict().keys()) == {
+        "timestamp",
+        "source_timestamp",
+        "source_offset",
+        "level",
+        "component",
+        "message",
+        "correlation_id",
+    }
+
+
 def test_parse_file_stream_does_not_call_read_text(tmp_path, monkeypatch):
     sample = tmp_path / "sample.log"
     sample.write_text("2025-01-01T00:00:01Z INFO api: ok\n", encoding="utf-8")

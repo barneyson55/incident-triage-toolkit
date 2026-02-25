@@ -42,23 +42,42 @@ triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 - `triage runbook <path> --out runbook.md --title "Incident: ..."`
 
 ## Parse JSON output contract (current)
+- Top-level payload keys are locked to: `schema_version`, `events`, `parse_summary`.
+- Current parse payload version is `schema_version: "1.0.0"`.
 - `events[*].timestamp` stays canonical UTC (`+00:00`) for deterministic ordering.
 - `events[*].source_timestamp` preserves the original timestamp token from input.
 - `events[*].source_offset` preserves the original explicit offset (`Z`, `+HH:MM`, `-HH:MM`) or
   `null` when input had no explicit offset.
-- Existing event keys (`timestamp`, `level`, `component`, `message`, `correlation_id`) remain
-  unchanged; provenance keys are additive for backward compatibility.
+- Event keys for schema `1.0.0` are locked to:
+  `timestamp`, `source_timestamp`, `source_offset`, `level`, `component`, `message`, `correlation_id`.
 
-Example event:
+Compatibility rules:
+- **Additive change** (new optional top-level or event fields): allowed with a schema **minor** bump.
+- **Breaking change** (rename/remove/type change/order contract break): requires a schema **major** bump
+  and explicit release notes.
+
+Example parse payload:
 ```json
 {
-  "timestamp": "2025-01-01T00:00:01+00:00",
-  "source_timestamp": "2024-12-31T19:00:01-05:00",
-  "source_offset": "-05:00",
-  "level": "INFO",
-  "component": "api",
-  "message": "hello",
-  "correlation_id": null
+  "schema_version": "1.0.0",
+  "events": [
+    {
+      "timestamp": "2025-01-01T00:00:01+00:00",
+      "source_timestamp": "2024-12-31T19:00:01-05:00",
+      "source_offset": "-05:00",
+      "level": "INFO",
+      "component": "api",
+      "message": "hello",
+      "correlation_id": null
+    }
+  ],
+  "parse_summary": {
+    "total_lines": 1,
+    "parsed_lines": 1,
+    "dropped_lines": 0,
+    "drop_ratio": 0.0,
+    "dropped_reasons": {}
+  }
 }
 ```
 

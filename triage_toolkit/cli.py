@@ -13,6 +13,7 @@ from .runbook import build_runbook
 from .timeline import build_timeline
 
 _PACKAGE_NAME = "incident-triage-toolkit"
+PARSE_SCHEMA_VERSION = "1.0.0"
 
 app = typer.Typer(name="triage", help="Incident triage toolkit.")
 
@@ -137,6 +138,7 @@ def parse(
         _fail(strict_error)
 
     payload = {
+        "schema_version": PARSE_SCHEMA_VERSION,
         "events": [event.to_dict() for event in events],
         "parse_summary": summary,
     }

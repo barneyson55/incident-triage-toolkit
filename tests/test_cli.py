@@ -26,6 +26,7 @@ def test_parse_stdout(tmp_path):
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
+    assert payload["schema_version"] == cli_module.PARSE_SCHEMA_VERSION
     assert payload["events"][0]["component"] == "api"
     assert payload["parse_summary"] == {
         "total_lines": 1,
@@ -34,6 +35,18 @@ def test_parse_stdout(tmp_path):
         "drop_ratio": 0.0,
         "dropped_reasons": {},
     }
+
+
+def test_parse_contract_required_top_level_keys_for_current_schema(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text("2025-01-01T00:00:01Z INFO api: hello\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["parse", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == cli_module.PARSE_SCHEMA_VERSION
+    assert set(payload.keys()) == {"schema_version", "events", "parse_summary"}
 
 
 def test_parse_missing_file_error():

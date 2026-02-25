@@ -23,12 +23,12 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - `pytest -q tests/test_runbook.py -k "utc"`
     - `make lint && make test`
 
-- [ ] ITK-011 (P1): Version and lock the parse JSON contract before further output expansion
+- [x] ITK-011 (P1): Version and lock the parse JSON contract before further output expansion
   - Why (impact): upcoming provenance + automation fields increase compatibility risk; a versioned contract prevents silent downstream breakage.
-  - DoD:
-    - Add top-level `schema_version` to `triage parse` output payload.
-    - Define contract rules for additive vs breaking changes in README.
-    - Add regression tests asserting required top-level keys and event key set for the current schema version.
+  - Delivered (2026-02-25):
+    - Added top-level `schema_version` (`1.0.0`) to `triage parse` JSON payload.
+    - Documented additive vs breaking contract rules in README.
+    - Added regression coverage for required top-level payload keys and locked event key set.
   - Verification:
     - `pytest -q tests/test_cli.py -k "schema_version or parse_contract"`
     - `pytest -q tests/test_parser.py -k "event_contract or to_dict"`
