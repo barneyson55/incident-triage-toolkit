@@ -83,3 +83,11 @@ Completed baseline (kept for history):
 - [x] ITK-006 (P0): Normalize outputs to UTC and accept offset-heavy text logs
 - [x] ITK-008 (P0): Expand regression matrix and raise CI confidence margin before new feature work
 - [x] ITK-009 (P1): Apply parse-quality gates to `timeline` and `runbook` commands
+
+
+<!-- ASPM_SWEEP_2026-02-25 -->
+## ASPM Sweep 2026-02-25
+- [x] Portfolio sweep triage logged on branch `main` (pre-sweep repo state: `clean`).
+- [x] First unchecked item in `docs/user_todo.md`: none.
+- [x] Top-level unchecked count in `docs/ai_todo.md` at sweep start: 4.
+- Next step: Execute the first unchecked top-level item already listed in docs/ai_todo.md.
