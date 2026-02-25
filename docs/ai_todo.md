@@ -2,34 +2,73 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-02-17 15:31 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-02-17 18:51 UTC):
+- `make lint` ✅
 - `make test` ✅ (47 passed)
-- `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88` ✅ (98.24%; `triage_toolkit/cli.py` at 98%)
+- `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88` ✅ (98.24%; `cli.py` 98%)
 
 ## Open priorities (highest engineering impact first)
 
-- [ ] ITK-010 (P1): Preserve timezone provenance while keeping UTC as canonical output
-  - Why (impact): UTC normalization fixed ordering, but downstream consumers may still need original source offset/timestamp context for audit and correlation.
+- [x] ITK-010 (P1): Preserve timezone provenance while keeping UTC as canonical output
+  - Why (impact): UTC normalization fixed ordering, but downstream consumers still need original source offset/timestamp context for audit and cross-system correlation.
   - DoD:
     - Keep canonical UTC `timestamp` unchanged in parse output.
-    - Add deterministic provenance fields in parse events (e.g., `source_timestamp`, `source_offset`) for both JSON and text log inputs.
-    - Keep timeline/runbook rendering UTC-first and unaffected by provenance additions.
-    - Document parse-event schema changes and backward-compatibility expectations in README.
+    - Add deterministic provenance fields in parse events (at least `source_timestamp` and `source_offset`) for JSON and text inputs.
+    - Keep timeline/runbook rendering UTC-first and unchanged by provenance additions.
+    - Document parse-event schema delta and backward-compatibility behavior in README.
   - Verification:
     - `pytest -q tests/test_parser.py -k "provenance or source_offset or source_timestamp"`
     - `pytest -q tests/test_cli.py -k "parse and provenance and timezone"`
     - `pytest -q tests/test_timeline.py -k "utc"`
+    - `pytest -q tests/test_runbook.py -k "utc"`
     - `make lint && make test`
 
-- [ ] ITK-007 (P2): Add machine-readable incident summary output for automation
-  - Why (impact): current outputs are human-friendly but weak for ticket enrichment and alert pipeline integration.
+- [ ] ITK-011 (P1): Version and lock the parse JSON contract before further output expansion
+  - Why (impact): upcoming provenance + automation fields increase compatibility risk; a versioned contract prevents silent downstream breakage.
+  - DoD:
+    - Add top-level `schema_version` to `triage parse` output payload.
+    - Define contract rules for additive vs breaking changes in README.
+    - Add regression tests asserting required top-level keys and event key set for the current schema version.
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "schema_version or parse_contract"`
+    - `pytest -q tests/test_parser.py -k "event_contract or to_dict"`
+    - `make lint && make test`
+
+- [ ] ITK-007 (P1): Add machine-readable incident summary output for automation
+  - Why (impact): current outputs are strong for humans but weak for ticket enrichment, alert pipelines, and programmatic triage handoffs.
   - DoD:
     - Add deterministic summary output surface (new command or option) with keys: incident window, event count, error count, top components, top error signatures, correlation-id coverage.
-    - Include `schema_version` and document stability/ordering guarantees in README.
-    - Ensure summary timestamps are UTC-normalized.
+    - Include `schema_version` and document ordering/stability guarantees in README.
+    - Keep all summary timestamps UTC-normalized.
   - Verification:
     - `pytest -q tests/test_cli.py -k "summary or schema_version"`
-    - `pytest -q tests/test_timeline.py -k "signature"`
+    - `pytest -q tests/test_timeline.py -k "signature or normalize"`
+    - `pytest -q tests/test_runbook.py -k "summary"`
+    - `make lint && make test`
+
+- [ ] ITK-012 (P2): Add multi-source ingestion (multiple files) with deterministic merge order
+  - Why (impact): real incidents usually span multiple log files/services; single-file ingestion increases operator overhead and missed correlation risk.
+  - DoD:
+    - Allow passing multiple input paths to parse/timeline/runbook flows.
+    - Merge events in deterministic global timestamp order (UTC canonical), with deterministic tie-break behavior.
+    - Expose per-source parse summary plus aggregate summary in parse output.
+    - Document CLI usage and merge semantics in README.
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "multiple_inputs or multi_source"`
+    - `pytest -q tests/test_parser.py -k "merge_order or per_source_summary"`
+    - `pytest -q tests/test_timeline.py -k "merge or ordering"`
+    - `make lint && make test`
+
+- [ ] ITK-013 (P2): Add golden-output contract tests for parse/timeline/runbook determinism
+  - Why (impact): protects CI confidence and prevents accidental format drift that breaks consumers and incident playbooks.
+  - DoD:
+    - Add fixture corpus with mixed JSON/text, offsets, malformed lines, and correlation-id variants.
+    - Add golden assertions for parse JSON, timeline markdown, and runbook markdown outputs.
+    - Ensure deterministic newline/key ordering expectations are explicit in tests.
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "golden or deterministic"`
+    - `pytest -q tests/test_timeline.py -k "golden"`
+    - `pytest -q tests/test_runbook.py -k "golden"`
     - `make lint && make test`
 
 ---

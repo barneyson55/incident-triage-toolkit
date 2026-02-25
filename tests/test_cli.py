@@ -284,7 +284,7 @@ def test_runbook_drop_ratio_strict_accepts_threshold(tmp_path):
     assert "# Incident: Untitled" in result.stdout
 
 
-def test_parse_stdout_normalizes_offset_timestamp_to_utc(tmp_path):
+def test_parse_stdout_normalizes_offset_timestamp_to_utc_and_preserves_provenance(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text("2025-01-01T02:00:01+02:00 INFO api: hello cid=c-1\n", encoding="utf-8")
 
@@ -292,7 +292,27 @@ def test_parse_stdout_normalizes_offset_timestamp_to_utc(tmp_path):
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["events"][0]["timestamp"] == "2025-01-01T00:00:01+00:00"
+    event = payload["events"][0]
+    assert event["timestamp"] == "2025-01-01T00:00:01+00:00"
+    assert event["source_timestamp"] == "2025-01-01T02:00:01+02:00"
+    assert event["source_offset"] == "+02:00"
+
+
+def test_parse_json_provenance_keeps_timezone_source_offset(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        '{"timestamp":"2024-12-31T19:00:01-05:00","component":"api","message":"hello"}\n',
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["parse", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    event = payload["events"][0]
+    assert event["timestamp"] == "2025-01-01T00:00:01+00:00"
+    assert event["source_timestamp"] == "2024-12-31T19:00:01-05:00"
+    assert event["source_offset"] == "-05:00"
 
 
 def test_parse_writes_output_file_and_reports_success(tmp_path):

@@ -41,6 +41,29 @@ triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 - `triage timeline <path> --out timeline.md`
 - `triage runbook <path> --out runbook.md --title "Incident: ..."`
 
+## Parse JSON output contract (current)
+- `events[*].timestamp` stays canonical UTC (`+00:00`) for deterministic ordering.
+- `events[*].source_timestamp` preserves the original timestamp token from input.
+- `events[*].source_offset` preserves the original explicit offset (`Z`, `+HH:MM`, `-HH:MM`) or
+  `null` when input had no explicit offset.
+- Existing event keys (`timestamp`, `level`, `component`, `message`, `correlation_id`) remain
+  unchanged; provenance keys are additive for backward compatibility.
+
+Example event:
+```json
+{
+  "timestamp": "2025-01-01T00:00:01+00:00",
+  "source_timestamp": "2024-12-31T19:00:01-05:00",
+  "source_offset": "-05:00",
+  "level": "INFO",
+  "component": "api",
+  "message": "hello",
+  "correlation_id": null
+}
+```
+
+Timeline and runbook outputs continue to render UTC timestamps only.
+
 ## Makefile (Linux/macOS / WSL)
 ```bash
 make setup

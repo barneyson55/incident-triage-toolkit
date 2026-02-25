@@ -13,10 +13,14 @@ class LogEvent:
     message: str
     correlation_id: str | None
     raw: str
+    source_timestamp: str | None = None
+    source_offset: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp.isoformat(),
+            "source_timestamp": self.source_timestamp,
+            "source_offset": self.source_offset,
             "level": self.level,
             "component": self.component,
             "message": self.message,

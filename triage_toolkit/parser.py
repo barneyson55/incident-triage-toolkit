@@ -19,6 +19,7 @@ _TEXT_TS_RE = re.compile(
 )
 _LEVEL_RE = re.compile(r"^(?:\[(?P<bracket>[A-Z]+)\]|(?P<plain>[A-Z]+))\s+(?P<rest>.*)$")
 _COMPONENT_RE = re.compile(r"^(?P<component>[A-Za-z0-9_.-]+):\s*(?P<message>.*)$")
+_SOURCE_OFFSET_RE = re.compile(r"(?P<offset>Z|[+-]\d{2}:\d{2})$")
 
 _DROP_BLANK_LINE = "blank_line"
 _DROP_INVALID_JSON = "invalid_json"
@@ -36,6 +37,13 @@ def _get_first(data: dict, keys: list[str], default: str | None = None) -> str |
     return default
 
 
+def _source_timestamp_provenance(value: str) -> tuple[str, str | None]:
+    source_timestamp = value.strip()
+    offset_match = _SOURCE_OFFSET_RE.search(source_timestamp)
+    source_offset = offset_match.group("offset") if offset_match else None
+    return source_timestamp, source_offset
+
+
 def _parse_json_line_with_reason(line: str) -> tuple[LogEvent | None, str | None]:
     try:
         payload = json.loads(line)
@@ -47,7 +55,9 @@ def _parse_json_line_with_reason(line: str) -> tuple[LogEvent | None, str | None
     ts_value = _get_first(payload, _TS_KEYS)
     if not ts_value:
         return None, _DROP_MISSING_TIMESTAMP
-    timestamp = parse_timestamp(ts_value)
+
+    source_timestamp, source_offset = _source_timestamp_provenance(ts_value)
+    timestamp = parse_timestamp(source_timestamp)
     if not timestamp:
         return None, _DROP_INVALID_TIMESTAMP
 
@@ -66,6 +76,8 @@ def _parse_json_line_with_reason(line: str) -> tuple[LogEvent | None, str | None
             message=message,
             correlation_id=correlation_id,
             raw=line.rstrip(),
+            source_timestamp=source_timestamp,
+            source_offset=source_offset,
         ),
         None,
     )
@@ -81,7 +93,8 @@ def _parse_text_line_with_reason(line: str) -> tuple[LogEvent | None, str | None
     if not match:
         return None, _DROP_UNRECOGNIZED_TEXT
 
-    timestamp = parse_timestamp(match.group("ts"))
+    source_timestamp, source_offset = _source_timestamp_provenance(match.group("ts"))
+    timestamp = parse_timestamp(source_timestamp)
     if not timestamp:
         return None, _DROP_INVALID_TIMESTAMP
 
@@ -109,6 +122,8 @@ def _parse_text_line_with_reason(line: str) -> tuple[LogEvent | None, str | None
             message=message,
             correlation_id=correlation_id,
             raw=line.rstrip(),
+            source_timestamp=source_timestamp,
+            source_offset=source_offset,
         ),
         None,
     )

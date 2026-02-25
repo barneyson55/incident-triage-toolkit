@@ -109,6 +109,8 @@ def test_parse_text_line_accepts_offset_and_normalizes_to_utc():
 
     assert event is not None
     assert event.timestamp.isoformat() == "2025-01-01T00:00:02+00:00"
+    assert event.source_timestamp == "2025-01-01T02:00:02+02:00"
+    assert event.source_offset == "+02:00"
 
 
 def test_parse_json_line_normalizes_negative_offset_to_utc():
@@ -120,6 +122,28 @@ def test_parse_json_line_normalizes_negative_offset_to_utc():
 
     assert event is not None
     assert event.timestamp.isoformat() == "2025-01-01T00:00:07+00:00"
+    assert event.source_timestamp == "2024-12-31T19:00:07-05:00"
+    assert event.source_offset == "-05:00"
+
+
+def test_parse_text_line_provenance_uses_z_offset_marker():
+    line = "2025-01-01T00:00:02Z INFO api: started"
+    event = parse_line(line)
+
+    assert event is not None
+    assert event.source_timestamp == "2025-01-01T00:00:02Z"
+    assert event.source_offset == "Z"
+
+
+def test_parse_json_line_provenance_has_null_offset_for_naive_timestamp():
+    line = '{"timestamp":"2025-01-01 00:00:02","component":"api","message":"ok"}'
+    event = parse_line(line)
+
+    assert event is not None
+    assert event.timestamp.isoformat() == "2025-01-01T00:00:02+00:00"
+    assert event.source_timestamp == "2025-01-01 00:00:02"
+    assert event.source_offset is None
+    assert event.to_dict()["source_offset"] is None
 
 
 def test_parse_file_stream_does_not_call_read_text(tmp_path, monkeypatch):
