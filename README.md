@@ -20,6 +20,7 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 
 triage parse samples/app.log --out parsed.json
+triage summary samples/app.log --out summary.json
 triage timeline samples/app.log --out timeline.md
 triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 ```
@@ -32,12 +33,14 @@ py -3.11 -m venv .venv
 python -m pip install -e ".[dev]"
 
 triage parse samples/app.log --out parsed.json
+triage summary samples/app.log --out summary.json
 triage timeline samples/app.log --out timeline.md
 triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 ```
 
 ## CLI Commands
 - `triage parse <path> --out parsed.json`
+- `triage summary <path> --out summary.json`
 - `triage timeline <path> --out timeline.md`
 - `triage runbook <path> --out runbook.md --title "Incident: ..."`
 
@@ -82,6 +85,13 @@ Example parse payload:
 ```
 
 Timeline and runbook outputs continue to render UTC timestamps only.
+
+## Summary JSON output contract (current)
+- `triage summary` emits deterministic JSON with `schema_version: "1.0.0"`.
+- Top-level keys: `schema_version`, `incident_window`, `event_count`, `error_count`,
+  `top_components`, `top_error_signatures`, `correlation_id_coverage`, `parse_summary`.
+- `incident_window.start/end` are canonical UTC ISO-8601 timestamps.
+- `top_components` and `top_error_signatures` are sorted by `count DESC`, then `name ASC`.
 
 ## Makefile (Linux/macOS / WSL)
 ```bash

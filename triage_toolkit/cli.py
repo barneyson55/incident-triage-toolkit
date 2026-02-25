@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from typing import Any, NoReturn
@@ -14,6 +15,7 @@ from .timeline import build_timeline
 
 _PACKAGE_NAME = "incident-triage-toolkit"
 PARSE_SCHEMA_VERSION = "1.0.0"
+SUMMARY_SCHEMA_VERSION = "1.0.0"
 
 app = typer.Typer(name="triage", help="Incident triage toolkit.")
 
@@ -114,6 +116,41 @@ def _strict_parse_error(summary: dict[str, Any], max_drop_ratio: float) -> str |
     return None
 
 
+def _top_items(counter: Counter[str], limit: int = 3) -> list[dict[str, Any]]:
+    ordered = sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+    return [{"name": name, "count": count} for name, count in ordered[:limit]]
+
+
+def _build_incident_summary(events: list[Any]) -> dict[str, Any]:
+    event_count = len(events)
+    start = events[0].timestamp.isoformat() if events else None
+    end = events[-1].timestamp.isoformat() if events else None
+
+    component_counts = Counter(event.component for event in events)
+    error_events = [event for event in events if event.level.upper() == "ERROR"]
+    error_signature_counts = Counter(event.message for event in error_events)
+
+    correlated = sum(1 for event in events if event.correlation_id)
+    correlation_coverage = 0.0 if event_count == 0 else correlated / event_count
+
+    return {
+        "schema_version": SUMMARY_SCHEMA_VERSION,
+        "incident_window": {
+            "start": start,
+            "end": end,
+        },
+        "event_count": event_count,
+        "error_count": len(error_events),
+        "top_components": _top_items(component_counts),
+        "top_error_signatures": _top_items(error_signature_counts),
+        "correlation_id_coverage": {
+            "covered_events": correlated,
+            "total_events": event_count,
+            "coverage_ratio": round(correlation_coverage, 6),
+        },
+    }
+
+
 @app.command()
 def parse(
     path: Path,
@@ -145,6 +182,36 @@ def parse(
     _write_output(out, json.dumps(payload, indent=2))
     if out != "-":
         typer.echo(f"Wrote {summary['parsed_lines']} events to {out}")
+
+
+@app.command()
+def summary(
+    path: Path,
+    out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Fail with non-zero exit code when parse quality gates are violated.",
+    ),
+    max_drop_ratio: float = typer.Option(
+        1.0,
+        "--max-drop-ratio",
+        min=0.0,
+        max=1.0,
+        help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
+    ),
+) -> None:
+    """Generate a machine-readable incident summary JSON output."""
+    events, parse_summary = _read_events_with_summary(path)
+    strict_error = _strict_parse_error(parse_summary, max_drop_ratio) if strict else None
+    if strict_error:
+        _fail(strict_error)
+
+    payload = _build_incident_summary(events)
+    payload["parse_summary"] = parse_summary
+    _write_output(out, json.dumps(payload, indent=2))
+    if out != "-":
+        typer.echo(f"Wrote incident summary to {out}")
 
 
 @app.command()

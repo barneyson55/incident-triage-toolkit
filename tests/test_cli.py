@@ -200,6 +200,40 @@ def test_parse_strict_stream_large_input_fails_when_drop_ratio_exceeds_threshold
     assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
 
 
+def test_summary_stdout_returns_machine_readable_contract(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: request accepted cid=c-1",
+                "2025-01-01T00:00:02Z ERROR db: connection timeout cid=c-2",
+                "2025-01-01T00:00:03Z ERROR db: connection timeout",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["summary", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == cli_module.SUMMARY_SCHEMA_VERSION
+    assert payload["incident_window"] == {
+        "start": "2025-01-01T00:00:01+00:00",
+        "end": "2025-01-01T00:00:03+00:00",
+    }
+    assert payload["event_count"] == 3
+    assert payload["error_count"] == 2
+    assert payload["top_components"][0] == {"name": "db", "count": 2}
+    assert payload["top_error_signatures"][0] == {"name": "connection timeout", "count": 1}
+    assert payload["correlation_id_coverage"] == {
+        "covered_events": 2,
+        "total_events": 3,
+        "coverage_ratio": 0.666667,
+    }
+
+
 def test_timeline_strict_fails_when_no_parsed_lines(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text("not a log line\n", encoding="utf-8")
