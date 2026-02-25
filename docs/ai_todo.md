@@ -34,7 +34,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - `pytest -q tests/test_parser.py -k "event_contract or to_dict"`
     - `make lint && make test`
 
-- [ ] ITK-007 (P1): Add machine-readable incident summary output for automation
+- [x] ITK-007 (P1): Add machine-readable incident summary output for automation
   - Why (impact): current outputs are strong for humans but weak for ticket enrichment, alert pipelines, and programmatic triage handoffs.
   - DoD:
     - Add deterministic summary output surface (new command or option) with keys: incident window, event count, error count, top components, top error signatures, correlation-id coverage.
@@ -42,7 +42,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - Keep all summary timestamps UTC-normalized.
   - Milestones:
     - [x] M1: Added `triage summary` command with deterministic JSON schema (`schema_version`, incident window, counts, top lists, correlation coverage) + CLI regression test.
-    - [ ] M2: Expand summary-focused tests (`-k "summary or schema_version"`) and harden edge-case behavior.
+    - [x] M2: Expand summary-focused tests (`-k "summary or schema_version"`) and harden edge-case behavior.
   - Verification:
     - `pytest -q tests/test_cli.py -k "summary or schema_version"`
     - `pytest -q tests/test_timeline.py -k "signature or normalize"`

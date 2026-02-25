@@ -234,6 +234,45 @@ def test_summary_stdout_returns_machine_readable_contract(tmp_path):
     }
 
 
+def test_summary_strict_fails_when_no_parsed_lines(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text("not a log line\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["summary", str(sample), "--out", "-", "--strict"])
+
+    assert result.exit_code == 2
+    assert "Strict parse gate failed: parsed_lines == 0" in result.output
+
+
+def test_summary_top_lists_are_deterministic_for_tied_counts(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO web: accepted",
+                "2025-01-01T00:00:02Z INFO api: accepted",
+                "2025-01-01T00:00:03Z ERROR db: timeout",
+                "2025-01-01T00:00:04Z ERROR cache: timeout",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["summary", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["top_components"] == [
+        {"name": "api", "count": 1},
+        {"name": "cache", "count": 1},
+        {"name": "db", "count": 1},
+    ]
+    assert payload["top_error_signatures"] == [
+        {"name": "timeout", "count": 2},
+    ]
+
+
 def test_timeline_strict_fails_when_no_parsed_lines(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text("not a log line\n", encoding="utf-8")
