@@ -67,6 +67,63 @@ def test_parse_multiple_inputs_merges_in_deterministic_timestamp_order(tmp_path)
     ]
 
 
+def test_parse_multiple_inputs_uses_stable_tiebreak_for_same_timestamp(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: from-a-1",
+                "2025-01-01T00:00:01Z INFO api: from-a-2",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_b.write_text("2025-01-01T00:00:01Z INFO db: from-b\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["parse", str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert [(event["component"], event["message"]) for event in payload["events"]] == [
+        ("api", "from-a-1"),
+        ("api", "from-a-2"),
+        ("db", "from-b"),
+    ]
+
+
+def test_parse_multiple_inputs_per_source_summary_keeps_source_order_and_reason_counts(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text("bad-a\n", encoding="utf-8")
+    source_b.write_text("2025-01-01T00:00:01Z INFO web: ok\nbad-b\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["parse", str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["parse_summary"]["dropped_reasons"] == {"unrecognized_text": 2}
+    assert payload["parse_summary"]["per_source"] == [
+        {
+            "path": str(source_a),
+            "total_lines": 1,
+            "parsed_lines": 0,
+            "dropped_lines": 1,
+            "drop_ratio": 1.0,
+            "dropped_reasons": {"unrecognized_text": 1},
+        },
+        {
+            "path": str(source_b),
+            "total_lines": 2,
+            "parsed_lines": 1,
+            "dropped_lines": 1,
+            "drop_ratio": 0.5,
+            "dropped_reasons": {"unrecognized_text": 1},
+        },
+    ]
+
+
 def test_parse_missing_file_error():
     result = runner.invoke(app, ["parse", "missing-file.log", "--out", "-"])
 

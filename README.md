@@ -39,10 +39,29 @@ triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 ```
 
 ## CLI Commands
-- `triage parse <path> --out parsed.json`
+- `triage parse <path...> --out parsed.json`
 - `triage summary <path> --out summary.json`
-- `triage timeline <path> --out timeline.md`
-- `triage runbook <path> --out runbook.md --title "Incident: ..."`
+- `triage timeline <path...> --out timeline.md`
+- `triage runbook <path...> --out runbook.md --title "Incident: ..."`
+
+## Multi-input ingestion & deterministic merge semantics
+`parse`, `timeline`, and `runbook` accept multiple input files in one command.
+
+Example:
+```bash
+triage parse logs/api.log logs/web.log logs/db.log --out parsed.json
+triage timeline logs/api.log logs/web.log --out timeline.md
+triage runbook logs/api.log logs/web.log --out runbook.md --title "Incident: 2025-01-01"
+```
+
+Deterministic ordering contract:
+1. Canonical UTC timestamp ascending (`events[*].timestamp`).
+2. If timestamps tie, earlier CLI input path wins.
+3. If still tied, original line order inside that source file wins.
+
+For multi-input `triage parse`, `parse_summary` includes aggregate counters plus
+`per_source` (ordered exactly as CLI inputs), each with the same summary fields
+(`total_lines`, `parsed_lines`, `dropped_lines`, `drop_ratio`, `dropped_reasons`).
 
 ## Parse JSON output contract (current)
 - Top-level payload keys are locked to: `schema_version`, `events`, `parse_summary`.

@@ -49,7 +49,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - `pytest -q tests/test_runbook.py -k "summary"`
     - `make lint && make test`
 
-- [ ] ITK-012 (P2): Add multi-source ingestion (multiple files) with deterministic merge order
+- [x] ITK-012 (P2): Add multi-source ingestion (multiple files) with deterministic merge order
   - Why (impact): real incidents usually span multiple log files/services; single-file ingestion increases operator overhead and missed correlation risk.
   - DoD:
     - Allow passing multiple input paths to parse/timeline/runbook flows.
@@ -59,7 +59,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
   - Milestones:
     - [x] M1: `triage parse` now accepts multiple input files, merges events by UTC timestamp with deterministic tie-breakers, and emits aggregate + `per_source` parse summary when multi-input is used.
     - [x] M2: Extend multi-input behavior to `timeline` and `runbook`, keeping deterministic merge semantics consistent.
-    - [ ] M3: Document multi-input CLI usage/merge semantics in README and add focused regression tests for tie-break/per-source summary edges.
+    - [x] M3: Document multi-input CLI usage/merge semantics in README and add focused regression tests for tie-break/per-source summary edges.
   - Verification:
     - `pytest -q tests/test_cli.py -k "multiple_inputs or multi_source"`
     - `pytest -q tests/test_parser.py -k "merge_order or per_source_summary"`
