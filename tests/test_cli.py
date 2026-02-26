@@ -49,6 +49,24 @@ def test_parse_contract_required_top_level_keys_for_current_schema(tmp_path):
     assert set(payload.keys()) == {"schema_version", "events", "parse_summary"}
 
 
+def test_parse_multiple_inputs_merges_in_deterministic_timestamp_order(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text("2025-01-01T00:00:02Z INFO api: second\n", encoding="utf-8")
+    source_b.write_text("2025-01-01T00:00:01Z INFO web: first\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["parse", str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert [event["component"] for event in payload["events"]] == ["web", "api"]
+    assert payload["parse_summary"]["parsed_lines"] == 2
+    assert [item["path"] for item in payload["parse_summary"]["per_source"]] == [
+        str(source_a),
+        str(source_b),
+    ]
+
+
 def test_parse_missing_file_error():
     result = runner.invoke(app, ["parse", "missing-file.log", "--out", "-"])
 

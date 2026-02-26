@@ -81,6 +81,47 @@ def _read_events_with_summary(path: Path) -> tuple[list[Any], dict[str, Any]]:
         _fail(f"Could not read input file '{path}': {exc}")
 
 
+def _merge_parse_summaries(summaries: list[dict[str, Any]]) -> dict[str, Any]:
+    total_lines = sum(int(summary["total_lines"]) for summary in summaries)
+    parsed_lines = sum(int(summary["parsed_lines"]) for summary in summaries)
+    dropped_lines = total_lines - parsed_lines
+    drop_ratio = dropped_lines / total_lines if total_lines else 0.0
+
+    dropped_reasons: Counter[str] = Counter()
+    for summary in summaries:
+        for reason, count in summary.get("dropped_reasons", {}).items():
+            dropped_reasons[reason] += int(count)
+
+    return {
+        "total_lines": total_lines,
+        "parsed_lines": parsed_lines,
+        "dropped_lines": dropped_lines,
+        "drop_ratio": round(drop_ratio, 6),
+        "dropped_reasons": {reason: dropped_reasons[reason] for reason in sorted(dropped_reasons)},
+    }
+
+
+def _read_events_for_parse(paths: list[Path]) -> tuple[list[Any], dict[str, Any]]:
+    if not paths:
+        _fail("At least one input file path is required.")
+
+    merged_events: list[tuple[Any, int, int]] = []
+    per_source: list[dict[str, Any]] = []
+
+    for source_index, path in enumerate(paths):
+        events, summary = _read_events_with_summary(path)
+        merged_events.extend((event, source_index, event_index) for event_index, event in enumerate(events))
+        per_source.append({"path": str(path), **summary})
+
+    merged_events.sort(key=lambda item: (item[0].timestamp, item[1], item[2]))
+    all_events = [item[0] for item in merged_events]
+
+    aggregate = _merge_parse_summaries(per_source)
+    if len(paths) > 1:
+        aggregate["per_source"] = per_source
+    return all_events, aggregate
+
+
 def _write_output(target: str, content: str) -> None:
     if target == "-":
         typer.echo(content, nl=False)
@@ -153,7 +194,7 @@ def _build_incident_summary(events: list[Any]) -> dict[str, Any]:
 
 @app.command()
 def parse(
-    path: Path,
+    paths: list[Path] = typer.Argument(..., help="One or more input log files."),
     out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
     strict: bool = typer.Option(
         False,
@@ -168,8 +209,8 @@ def parse(
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
 ) -> None:
-    """Parse a log file and write normalized JSON output."""
-    events, summary = _read_events_with_summary(path)
+    """Parse one or more log files and write normalized JSON output."""
+    events, summary = _read_events_for_parse(paths)
     strict_error = _strict_parse_error(summary, max_drop_ratio) if strict else None
     if strict_error:
         _fail(strict_error)

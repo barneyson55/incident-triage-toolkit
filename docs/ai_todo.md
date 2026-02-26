@@ -56,6 +56,10 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - Merge events in deterministic global timestamp order (UTC canonical), with deterministic tie-break behavior.
     - Expose per-source parse summary plus aggregate summary in parse output.
     - Document CLI usage and merge semantics in README.
+  - Milestones:
+    - [x] M1: `triage parse` now accepts multiple input files, merges events by UTC timestamp with deterministic tie-breakers, and emits aggregate + `per_source` parse summary when multi-input is used.
+    - [ ] M2: Extend multi-input behavior to `timeline` and `runbook`, keeping deterministic merge semantics consistent.
+    - [ ] M3: Document multi-input CLI usage/merge semantics in README and add focused regression tests for tie-break/per-source summary edges.
   - Verification:
     - `pytest -q tests/test_cli.py -k "multiple_inputs or multi_source"`
     - `pytest -q tests/test_parser.py -k "merge_order or per_source_summary"`
