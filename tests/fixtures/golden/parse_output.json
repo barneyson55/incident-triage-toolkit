@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "events": [
+    {
+      "timestamp": "2025-03-01T10:00:00+00:00",
+      "source_timestamp": "2025-03-01T10:00:00Z",
+      "source_offset": "Z",
+      "level": "INFO",
+      "component": "api",
+      "message": "start cid=abc-1",
+      "correlation_id": "abc-1"
+    },
+    {
+      "timestamp": "2025-03-01T10:00:02+00:00",
+      "source_timestamp": "2025-03-01T05:00:02-05:00",
+      "source_offset": "-05:00",
+      "level": "ERROR",
+      "component": "db",
+      "message": "query failed cid=q-9",
+      "correlation_id": "q-9"
+    },
+    {
+      "timestamp": "2025-03-01T10:00:03+00:00",
+      "source_timestamp": "2025-03-01T12:00:03+02:00",
+      "source_offset": "+02:00",
+      "level": "WARN",
+      "component": "worker",
+      "message": "retry in 30s",
+      "correlation_id": null
+    },
+    {
+      "timestamp": "2025-03-01T10:00:04+00:00",
+      "source_timestamp": "2025-03-01T10:00:04Z",
+      "source_offset": "Z",
+      "level": "ERROR",
+      "component": "api",
+      "message": "request 500 for user 42",
+      "correlation_id": null
+    }
+  ],
+  "parse_summary": {
+    "total_lines": 5,
+    "parsed_lines": 4,
+    "dropped_lines": 1,
+    "drop_ratio": 0.2,
+    "dropped_reasons": {
+      "unrecognized_text": 1
+    }
+  }
+}

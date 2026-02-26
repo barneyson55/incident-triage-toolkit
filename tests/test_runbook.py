@@ -1,5 +1,9 @@
-﻿from triage_toolkit.parser import parse_line
+﻿from pathlib import Path
+
+from triage_toolkit.parser import parse_line
 from triage_toolkit.runbook import build_runbook
+
+GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 
 
 def test_runbook_headings():
@@ -31,3 +35,13 @@ def test_runbook_first_observed_is_normalized_to_utc():
     assert "- First observed: `2025-01-01T00:00:01+00:00`" in runbook
     assert "+02:00" not in runbook
     assert "-05:00" not in runbook
+
+
+def test_runbook_golden_output_is_deterministic():
+    lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
+    expected = (GOLDEN_DIR / "runbook_output.md").read_text(encoding="utf-8")
+
+    events = [parse_line(line) for line in lines]
+    actual = build_runbook([event for event in events if event], "Incident: Golden")
+
+    assert actual == expected

@@ -66,7 +66,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - `pytest -q tests/test_timeline.py -k "merge or ordering"`
     - `make lint && make test`
 
-- [ ] ITK-013 (P2): Add golden-output contract tests for parse/timeline/runbook determinism
+- [x] ITK-013 (P2): Add golden-output contract tests for parse/timeline/runbook determinism
   - Why (impact): protects CI confidence and prevents accidental format drift that breaks consumers and incident playbooks.
   - DoD:
     - Add fixture corpus with mixed JSON/text, offsets, malformed lines, and correlation-id variants.

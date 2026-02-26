@@ -1,0 +1,5 @@
+2025-03-01T10:00:00Z INFO api: start cid=abc-1
+this is malformed
+{"timestamp":"2025-03-01T05:00:02-05:00","level":"error","component":"db","message":"query failed cid=q-9"}
+2025-03-01T12:00:03+02:00 WARN worker: retry in 30s
+2025-03-01T10:00:04Z ERROR api: request 500 for user 42

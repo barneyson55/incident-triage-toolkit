@@ -1,5 +1,6 @@
 import json
 from importlib.metadata import PackageNotFoundError, version as package_version
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -9,6 +10,7 @@ from triage_toolkit import __version__
 from triage_toolkit.cli import app
 
 runner = CliRunner()
+GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 
 
 def _expected_version() -> str:
@@ -47,6 +49,16 @@ def test_parse_contract_required_top_level_keys_for_current_schema(tmp_path):
     payload = json.loads(result.stdout)
     assert payload["schema_version"] == cli_module.PARSE_SCHEMA_VERSION
     assert set(payload.keys()) == {"schema_version", "events", "parse_summary"}
+
+
+def test_parse_golden_output_contract_is_deterministic():
+    sample = GOLDEN_DIR / "mixed_input.log"
+    expected = (GOLDEN_DIR / "parse_output.json").read_text(encoding="utf-8")
+
+    result = runner.invoke(app, ["parse", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    assert result.stdout == expected
 
 
 def test_parse_multiple_inputs_merges_in_deterministic_timestamp_order(tmp_path):

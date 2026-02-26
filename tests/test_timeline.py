@@ -1,5 +1,9 @@
-﻿from triage_toolkit.parser import parse_line
+﻿from pathlib import Path
+
+from triage_toolkit.parser import parse_line
 from triage_toolkit.timeline import build_timeline
+
+GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 
 
 def test_timeline_ordering():
@@ -35,3 +39,13 @@ def test_timeline_mixed_timezone_offsets_render_in_utc():
     assert 0 <= first < second < third
     assert "+02:00" not in timeline
     assert "-05:00" not in timeline
+
+
+def test_timeline_golden_output_is_deterministic():
+    lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
+    expected = (GOLDEN_DIR / "timeline_output.md").read_text(encoding="utf-8")
+
+    events = [parse_line(line) for line in lines]
+    actual = build_timeline([event for event in events if event])
+
+    assert actual == expected
