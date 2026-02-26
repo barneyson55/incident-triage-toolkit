@@ -257,7 +257,7 @@ def summary(
 
 @app.command()
 def timeline(
-    path: Path,
+    paths: list[Path] = typer.Argument(..., help="One or more input log files."),
     out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
     strict: bool = typer.Option(
         False,
@@ -272,8 +272,8 @@ def timeline(
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
 ) -> None:
-    """Generate a timeline markdown file from logs."""
-    events, summary = _read_events_with_summary(path)
+    """Generate a timeline markdown file from one or more log files."""
+    events, summary = _read_events_for_parse(paths)
     strict_error = _strict_parse_error(summary, max_drop_ratio) if strict else None
     if strict_error:
         _fail(strict_error)
@@ -286,7 +286,7 @@ def timeline(
 
 @app.command()
 def runbook(
-    path: Path,
+    paths: list[Path] = typer.Argument(..., help="One or more input log files."),
     out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
     title: str = typer.Option("Incident: Untitled", "--title"),
     strict: bool = typer.Option(
@@ -302,8 +302,8 @@ def runbook(
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
 ) -> None:
-    """Generate a runbook skeleton from logs."""
-    events, summary = _read_events_with_summary(path)
+    """Generate a runbook skeleton from one or more log files."""
+    events, summary = _read_events_for_parse(paths)
     strict_error = _strict_parse_error(summary, max_drop_ratio) if strict else None
     if strict_error:
         _fail(strict_error)

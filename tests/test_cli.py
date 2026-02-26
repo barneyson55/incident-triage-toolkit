@@ -301,6 +301,20 @@ def test_timeline_strict_fails_when_no_parsed_lines(tmp_path):
     assert "Strict parse gate failed: parsed_lines == 0" in result.output
 
 
+def test_timeline_multiple_inputs_merge_in_deterministic_order(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text("2025-01-01T00:00:02Z INFO api: from-a\n", encoding="utf-8")
+    source_b.write_text("2025-01-01T00:00:01Z INFO db: from-b\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["timeline", str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    first = result.stdout.find("2025-01-01T00:00:01+00:00")
+    second = result.stdout.find("2025-01-01T00:00:02+00:00")
+    assert first != -1 and second != -1 and first < second
+
+
 def test_runbook_strict_fails_when_drop_ratio_exceeds_threshold(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text(
@@ -386,6 +400,18 @@ def test_runbook_drop_ratio_strict_accepts_threshold(tmp_path):
 
     assert result.exit_code == 0
     assert "# Incident: Untitled" in result.stdout
+
+
+def test_runbook_multiple_inputs_include_earliest_observed_timestamp(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text("2025-01-01T00:00:03Z INFO api: from-a\n", encoding="utf-8")
+    source_b.write_text("2025-01-01T00:00:01Z ERROR db: from-b\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["runbook", str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    assert "- First observed: `2025-01-01T00:00:01+00:00`" in result.stdout
 
 
 def test_parse_stdout_normalizes_offset_timestamp_to_utc_and_preserves_provenance(tmp_path):
