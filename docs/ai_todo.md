@@ -183,3 +183,9 @@ Completed baseline (kept for history):
 - [x] Re-checked `docs/ai_todo.md`: no unchecked top-level engineering items.
 - [x] Verification run completed: `make test` (63 passed).
 - Next step: BLOCKED pending a new unchecked item in `docs/user_todo.md` or `docs/ai_todo.md`.
+
+## ASPM Sweep 2026-02-27 (22:52 UTC run)
+- [x] Re-checked `docs/user_todo.md`: no open user actions.
+- [x] Re-checked `docs/ai_todo.md`: no unchecked top-level engineering items.
+- [x] Verification run completed: `make test` (63 passed).
+- Next step: BLOCKED pending a new unchecked item in `docs/user_todo.md` or `docs/ai_todo.md`.
