@@ -98,3 +98,10 @@ Completed baseline (kept for history):
 - [x] First unchecked item in `docs/user_todo.md`: none.
 - [x] Top-level unchecked count in `docs/ai_todo.md` at sweep start: 4.
 - Next step: Execute the first unchecked top-level item already listed in docs/ai_todo.md.
+
+<!-- ASPM_SWEEP_2026-02-27 -->
+## ASPM Sweep 2026-02-27
+- [x] Re-checked `docs/user_todo.md`: no open user actions.
+- [x] Re-checked `docs/ai_todo.md`: no unchecked top-level engineering items remain.
+- [x] Verification run completed: `make test` (63 passed).
+- Next step: BLOCKED until a new `docs/user_todo.md` or `docs/ai_todo.md` unchecked item is added.
