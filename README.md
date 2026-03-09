@@ -67,6 +67,27 @@ For multi-input `triage parse`, `parse_summary` includes aggregate counters plus
 `per_source` (ordered exactly as CLI inputs), each with the same summary fields
 (`total_lines`, `parsed_lines`, `dropped_lines`, `drop_ratio`, `dropped_reasons`).
 
+## Stdin ingestion (`-`)
+`triage parse`, `summary`, `timeline`, and `runbook` all accept `-` as a UTF-8 stdin source.
+
+Examples:
+```bash
+kubectl logs deploy/api --since=15m | triage parse - --out parsed.json
+journalctl -u myservice --since "1 hour ago" | triage summary - --out summary.json
+cat samples/app.log | triage timeline - --out timeline.md
+cat samples/app.log | triage runbook - --out runbook.md --title "Incident: STDIN"
+triage parse app.log - --out parsed.json   # file first, stdin second
+```
+
+Stdin mixing rules:
+- `-` may appear at most once in a command.
+- `-` is reported back as the stable source label in `parse_summary.per_source[*].path`
+  and dropped-line diagnostics (`source_path`).
+- When files and stdin are combined, merge ordering stays deterministic: UTC timestamp,
+  then CLI input position (including `-`), then original line order within that source.
+- In PowerShell, prefer `Get-Content -Raw .\app.log | triage parse - --out parsed.json`
+  so the native CLI receives newline-delimited text predictably.
+
 For parse-quality investigation, `triage parse --diagnostics-limit N` adds a bounded
 `parse_summary.dropped_line_diagnostics` list. Entries are emitted in deterministic
 CLI input order, then by original line number within each source file. Each entry
@@ -129,12 +150,13 @@ Timeline and runbook outputs continue to render UTC timestamps only.
 - `parse_summary` stays backward compatible for single-input runs; multi-input runs add ordered
   `per_source` entries (in the exact CLI input order) alongside aggregate counters.
 
-### Deterministic incident slicing filters (current milestone)
-`triage summary` now supports repeated output-slicing flags:
+### Deterministic incident slicing filters
+`triage summary`, `triage timeline`, and `triage runbook` all support the same repeated output-slicing flags:
 
 ```bash
 triage summary samples/app.log --out summary.json --component api --level error
-triage summary samples/app.log --out summary.json --component api --component worker --correlation-id c-123
+triage timeline samples/app.log --out timeline.md --component api --component worker --correlation-id c-123
+triage runbook samples/app.log --out runbook.md --title "Incident: Slice" --component worker --level error
 ```
 
 Filter semantics:
@@ -142,12 +164,11 @@ Filter semantics:
 - Different filter families combine with AND semantics.
 - `--level` is case-insensitive and matches normalized event levels.
 - `--component` and `--correlation-id` use exact string matching on parsed event fields.
+- Filtered `summary`, `timeline`, and `runbook` outputs preserve the existing deterministic event ordering.
 - Strict parse gates and `parse_summary` always reflect the raw ingested inputs before filtering,
   so filters cannot hide parse failures or dropped-line ratios.
-- If filters match no events, summary counters become zero/empty while `parse_summary` still
-  reports the raw ingestion quality.
-
-`timeline` and `runbook` filter flags are still pending as follow-up work under ITK-016.
+- If filters match no events, `summary` counters become zero/empty while `timeline` and `runbook`
+  render their empty-state templates; in all cases the raw ingestion quality remains unchanged.
 
 ## Makefile (Linux/macOS / WSL)
 ```bash

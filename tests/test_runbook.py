@@ -37,6 +37,22 @@ def test_runbook_first_observed_is_normalized_to_utc():
     assert "-05:00" not in runbook
 
 
+def test_runbook_filtered_subset_uses_filtered_first_observed_and_counts():
+    lines = [
+        "2025-01-01T00:00:01Z INFO api: accepted cid=c-1",
+        "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2",
+        "2025-01-01T00:00:03Z ERROR worker: timeout cid=c-2",
+    ]
+    events = [parse_line(line) for line in lines]
+    filtered = [event for event in events if event and event.correlation_id == "c-2"]
+
+    runbook = build_runbook(filtered, "Incident: Filtered")
+
+    assert "- First observed: `2025-01-01T00:00:02+00:00`" in runbook
+    assert "- Error events: 2 of 2 total" in runbook
+    assert "- Suspected components: api, worker" in runbook
+
+
 def test_runbook_golden_output_is_deterministic():
     lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
     expected = (GOLDEN_DIR / "runbook_output.md").read_text(encoding="utf-8")

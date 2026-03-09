@@ -41,6 +41,22 @@ def test_timeline_mixed_timezone_offsets_render_in_utc():
     assert "-05:00" not in timeline
 
 
+def test_timeline_filtered_subset_preserves_stable_order_for_tied_timestamps():
+    lines = [
+        "2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2",
+        "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2",
+        "2025-01-01T00:00:03Z ERROR web: timeout cid=c-3",
+    ]
+    events = [parse_line(line) for line in lines]
+    filtered = [event for event in events if event and event.correlation_id == "c-2"]
+
+    timeline = build_timeline(filtered)
+
+    worker_index = timeline.find("| 2025-01-01T00:00:02+00:00 | ERROR | worker | timeout cid=c-2 |")
+    api_index = timeline.find("| 2025-01-01T00:00:02+00:00 | ERROR | api | timeout cid=c-2 |")
+    assert 0 <= worker_index < api_index
+
+
 def test_timeline_golden_output_is_deterministic():
     lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
     expected = (GOLDEN_DIR / "timeline_output.md").read_text(encoding="utf-8")

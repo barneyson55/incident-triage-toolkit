@@ -2,62 +2,49 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-03-09 08:41 UTC):
-- `docs/status.md` ⚠️ reviewed, but stale versus the current working tree: it still points to older next steps, while local CLI/README/test changes show ITK-014 is already implemented and passing.
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-03-09 15:58 UTC):
+- `docs/status.md` ✅ current enough on the main product direction: ITK-018 is complete, and evidence-driven runbook output (ITK-017) is now the next highest-impact product gap.
+- `README.md` ✅ documents both deterministic filter parity and stdin ingestion semantics.
 - `docs/critical_todo.md` ✅ no open critical items.
-- `git status --short` ⚠️ working tree not clean; active non-doc edits already exist in `README.md`, `tests/test_cli.py`, and `triage_toolkit/cli.py`.
-- `make test` ✅ (65 passed)
-- `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and multiple_inputs"` ✅ (3 passed)
-- `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88` ✅ (98.01%)
+- `docs/user_todo.md` ✅ no open manual-user blockers.
+- `make test` ✅ (85 passed)
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-015 (P1): Add deterministic dropped-line diagnostics for parse quality investigation
-  - Why (impact): strict parse gates now prevent silent data loss, but they still do a poor job of explaining failures. When drop ratio spikes, operators cannot yet see which exact lines were rejected, which slows parser debugging and weakens trust in the toolkit.
+- [x] ITK-016 (P1): Finish deterministic incident-slicing filter parity for `timeline` and `runbook`
+  - Why (impact): this is the most immediate product gap because the repo already shipped `summary` filters, but operators still cannot carry the same slice into human-readable outputs. That forces context switching and weakens the “one incident slice, all outputs” workflow.
   - DoD:
-    - Add a bounded diagnostics surface for dropped lines (opt-in output field or dedicated command/option).
-    - Each diagnostic entry includes at least: source path, line number, drop reason, and raw sample line.
-    - Ordering/sampling is deterministic across runs and explicitly documented.
-    - Any new machine-readable contract follows the existing schema-version discipline.
-    - README documents how to use diagnostics during triage and what limits/redaction assumptions apply.
+    - Add repeated `--component`, `--level`, and `--correlation-id` flags to `timeline` and `runbook`.
+    - Repeating the same flag widens with OR semantics; different filter families combine with AND semantics, matching the existing `summary` contract.
+    - Filtered `timeline`/`runbook` outputs preserve deterministic event ordering.
+    - Strict parse gates and parse-quality summaries continue to evaluate the raw ingested inputs before filtering, so filters cannot hide parse failures.
+    - README examples and filter-semantics docs cover all three commands consistently.
   - Verification:
-    - `pytest -q tests/test_parser.py -k "dropped and diagnostics"`
-    - `pytest -q tests/test_cli.py -k "strict and diagnostics or dropped_examples"`
-    - `make test`
-
-- [ ] ITK-016 (P1): Add deterministic incident-slicing filters for noisy logs
-  - Why (impact): the current CLI always processes the full event set. Real incident work often needs fast slices by component, level, or correlation ID without forcing operators into ad-hoc `grep`/`jq` chains.
-  - DoD:
-    - Add repeated filters such as `--component`, `--level`, and `--correlation-id` to `summary`, `timeline`, and `runbook`.
-    - Filtered outputs preserve deterministic event ordering and deterministic top-list ordering.
-    - Strict parse gates continue to evaluate raw ingestion quality rather than the filtered subset, so filters cannot hide parse failures.
-    - README documents filter semantics, repeated-flag behavior, and examples.
-  - Verification:
-    - `pytest -q tests/test_cli.py -k "filter and summary or filter and timeline or filter and runbook"`
+    - `pytest -q tests/test_cli.py -k "filter and timeline or filter and runbook"`
     - `pytest -q tests/test_timeline.py -k "filter"`
     - `pytest -q tests/test_runbook.py -k "filter"`
     - `make test`
 
-- [ ] ITK-018 (P1): Support stdin ingestion (`-`) across CLI commands
-  - Why (impact): the toolkit already supports stdout (`--out -`) but not stdin input. For a line-oriented incident CLI, that blocks high-value shell-native workflows like `kubectl logs`, `journalctl`, pasted snippets, and pipe-based preprocessing.
+- [x] ITK-018 (P1): Support stdin ingestion (`-`) across CLI commands
+  - Why (impact): after filter parity, the highest workflow leverage is shell-native input. A line-oriented incident CLI should work naturally with `kubectl logs`, `journalctl`, pasted snippets, and pipeline preprocessing instead of requiring temp files.
   - DoD:
     - `parse`, `summary`, `timeline`, and `runbook` accept `-` as a UTF-8 stdin source.
-    - Mixing rules are explicitly defined and deterministic (for example: stdin allowed at most once, source label is stable, multi-input ordering stays documented).
-    - Strict parse behavior and multi-input merge semantics remain correct when stdin participates.
-    - README documents stdin examples for Linux/macOS/WSL.
+    - Mixing rules are explicit and deterministic (stdin allowed at most once, stable source labeling, documented merge ordering when files and stdin are combined).
+    - Strict parse behavior, multi-input merge semantics, and parse summaries remain correct when stdin participates.
+    - README documents stdin examples for Linux/macOS/WSL and notes any PowerShell caveats.
   - Verification:
     - `pytest -q tests/test_cli.py -k "stdin or standard_input"`
-    - `pytest -q tests/test_parser.py -k "stream"`
+    - `pytest -q tests/test_parser.py -k "stream or stdin"`
     - `make test`
 
 - [ ] ITK-017 (P2): Make runbook output evidence-driven instead of mostly boilerplate
-  - Why (impact): current runbook output is stable but still closer to a template than a strong handoff artifact. The repo already has enough structured incident data to make the runbook materially more useful without adding dependencies.
+  - Why (impact): the current runbook is deterministic and usable, but it still reads more like a template than a strong handoff artifact. Once filter parity is complete, the runbook should surface real incident evidence rather than generic placeholders.
   - DoD:
     - Add deterministic evidence sections derived from parsed events (for example: incident window, top error signatures, suspected components with counts, representative correlation IDs, or example failures).
     - Keep timestamps UTC-first and ordering deterministic.
     - Reuse existing summary/filter logic where practical so markdown output does not fork incident-analysis rules.
     - Update golden fixtures/tests to lock the richer markdown contract.
-    - README documents the upgraded runbook structure.
+    - README documents the upgraded runbook structure and any filtering interaction.
   - Verification:
     - `pytest -q tests/test_runbook.py -k "golden or evidence or signature"`
     - `pytest -q tests/test_cli.py -k "runbook and golden"`
@@ -81,3 +68,4 @@ Completed foundation (kept brief for history):
 - [x] ITK-012 (P2): Add multi-source ingestion (multiple files) with deterministic merge order
 - [x] ITK-013 (P2): Add golden-output contract tests for parse/timeline/runbook determinism
 - [x] ITK-014 (P1): Extend `triage summary` to multi-input parity
+- [x] ITK-015 (P1): Add deterministic dropped-line diagnostics for parse quality investigation

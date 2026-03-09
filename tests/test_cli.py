@@ -218,6 +218,103 @@ def test_parse_multiple_inputs_dropped_examples_follow_cli_input_order(tmp_path)
     )
 
 
+def test_parse_stdin_only_uses_stable_source_label_for_diagnostics():
+    result = runner.invoke(
+        app,
+        ["parse", "-", "--out", "-", "--diagnostics-limit", "1"],
+        input="bad-line\n2025-01-01T00:00:01Z INFO api: ok cid=c-1\n",
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["events"][0]["component"] == "api"
+    assert payload["parse_summary"]["dropped_line_diagnostics"] == [
+        {
+            "source_path": "-",
+            "line_number": 1,
+            "reason": "unrecognized_text",
+            "raw_line": "bad-line",
+        }
+    ]
+
+
+def test_parse_multiple_inputs_with_stdin_preserve_cli_input_order_for_tied_timestamps(tmp_path):
+    source_file = tmp_path / "file.log"
+    source_file.write_text("2025-01-01T00:00:01Z INFO api: from-file\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["parse", str(source_file), "-", "--out", "-"],
+        input="2025-01-01T00:00:01Z INFO web: from-stdin\n",
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert [(event["component"], event["message"]) for event in payload["events"]] == [
+        ("api", "from-file"),
+        ("web", "from-stdin"),
+    ]
+    assert [item["path"] for item in payload["parse_summary"]["per_source"]] == [
+        str(source_file),
+        "-",
+    ]
+
+
+def test_parse_rejects_duplicate_stdin_sources():
+    result = runner.invoke(app, ["parse", "-", "-", "--out", "-"])
+
+    assert result.exit_code == 2
+    assert "Standard input source '-' may be specified at most once." in result.output
+
+
+def test_parse_strict_with_stdin_uses_raw_ingestion_quality():
+    result = runner.invoke(
+        app,
+        ["parse", "-", "--out", "-", "--strict", "--max-drop-ratio", "0.49"],
+        input="2025-01-01T00:00:01Z INFO api: ok\nbad-line\n",
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
+
+
+def test_summary_accepts_stdin_only():
+    result = runner.invoke(
+        app,
+        ["summary", "-", "--out", "-"],
+        input="2025-01-01T00:00:01Z ERROR api: failed cid=c-1\n",
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["event_count"] == 1
+    assert payload["error_count"] == 1
+    assert payload["top_components"] == [{"name": "api", "count": 1}]
+
+
+def test_timeline_accepts_stdin_only():
+    result = runner.invoke(
+        app,
+        ["timeline", "-", "--out", "-"],
+        input="2025-01-01T00:00:01Z INFO api: ok cid=c-1\n",
+    )
+
+    assert result.exit_code == 0
+    assert "| 2025-01-01T00:00:01+00:00 | INFO | api | ok cid=c-1 |" in result.stdout
+
+
+def test_runbook_accepts_stdin_only():
+    result = runner.invoke(
+        app,
+        ["runbook", "-", "--out", "-", "--title", "Incident: STDIN"],
+        input="2025-01-01T00:00:01Z ERROR api: failed cid=c-1\n",
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout.startswith("# Incident: STDIN\n")
+    assert "- Error events: 1 of 1 total" in result.stdout
+
+
 def test_parse_missing_file_error():
     result = runner.invoke(app, ["parse", "missing-file.log", "--out", "-"])
 
@@ -681,6 +778,141 @@ def test_timeline_multiple_inputs_merge_in_deterministic_order(tmp_path):
     first = result.stdout.find("2025-01-01T00:00:01+00:00")
     second = result.stdout.find("2025-01-01T00:00:02+00:00")
     assert first != -1 and second != -1 and first < second
+
+
+def test_timeline_filters_slice_events_with_repeated_or_flags_and_preserve_order(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: accepted cid=c-1",
+                "2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2",
+                "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2",
+                "2025-01-01T00:00:03Z ERROR web: timeout cid=c-3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "timeline",
+            str(sample),
+            "--out",
+            "-",
+            "--component",
+            "worker",
+            "--component",
+            "api",
+            "--level",
+            "ERROR",
+            "--correlation-id",
+            "c-2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "accepted cid=c-1" not in result.stdout
+    assert "web" not in result.stdout
+    worker_index = result.stdout.find("| 2025-01-01T00:00:02+00:00 | ERROR | worker | timeout cid=c-2 |")
+    api_index = result.stdout.find("| 2025-01-01T00:00:02+00:00 | ERROR | api | timeout cid=c-2 |")
+    assert 0 <= worker_index < api_index
+
+
+def test_timeline_filters_do_not_bypass_strict_parse_gate_on_raw_ingestion(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "2025-01-01T00:00:01Z INFO api: accepted cid=c-1\nbad-line\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "timeline",
+            str(sample),
+            "--out",
+            "-",
+            "--component",
+            "api",
+            "--strict",
+            "--max-drop-ratio",
+            "0.49",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
+
+
+def test_runbook_filters_slice_events_with_repeated_or_flags_and_and_across_fields(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: accepted cid=c-1",
+                "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2",
+                "2025-01-01T00:00:03Z ERROR worker: timeout cid=c-2",
+                "2025-01-01T00:00:04Z ERROR web: timeout cid=c-3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "runbook",
+            str(sample),
+            "--out",
+            "-",
+            "--title",
+            "Incident: Filtered",
+            "--component",
+            "api",
+            "--component",
+            "worker",
+            "--level",
+            "error",
+            "--correlation-id",
+            "c-2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout.startswith("# Incident: Filtered\n")
+    assert "- First observed: `2025-01-01T00:00:02+00:00`" in result.stdout
+    assert "- Error events: 2 of 2 total" in result.stdout
+    assert "- Suspected components: api, worker" in result.stdout
+
+
+def test_runbook_filters_do_not_bypass_strict_parse_gate_on_raw_ingestion(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "2025-01-01T00:00:01Z INFO api: accepted cid=c-1\nbad-line\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "runbook",
+            str(sample),
+            "--out",
+            "-",
+            "--component",
+            "api",
+            "--strict",
+            "--max-drop-ratio",
+            "0.49",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
 
 
 def test_runbook_strict_fails_when_drop_ratio_exceeds_threshold(tmp_path):

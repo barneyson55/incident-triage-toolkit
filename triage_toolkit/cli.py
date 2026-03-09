@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any, NoReturn
 import typer
 
 from . import __version__
-from .parser import parse_file, parse_file_with_summary
+from .parser import parse_file, parse_file_with_summary, parse_lines_with_summary
 from .runbook import build_runbook
 from .timeline import build_timeline
 
@@ -87,6 +88,24 @@ def _read_events_with_summary(
         _fail(f"Could not read input file '{path}': {exc}")
 
 
+def _read_stdin_lines() -> list[str]:
+    stream = getattr(sys.stdin, "buffer", None)
+    if stream is not None:
+        return stream.read().decode("utf-8").splitlines()
+    return sys.stdin.read().splitlines()
+
+
+def _read_events_from_stdin(
+    *,
+    diagnostics_limit: int = 0,
+) -> tuple[list[Any], dict[str, Any]]:
+    try:
+        lines = _read_stdin_lines()
+    except UnicodeDecodeError:
+        _fail("Standard input is not valid UTF-8 text.")
+    return parse_lines_with_summary(lines, source_path="-", diagnostics_limit=diagnostics_limit)
+
+
 def _merge_parse_summaries(summaries: list[dict[str, Any]]) -> dict[str, Any]:
     total_lines = sum(int(summary["total_lines"]) for summary in summaries)
     parsed_lines = sum(int(summary["parsed_lines"]) for summary in summaries)
@@ -115,13 +134,20 @@ def _read_events_for_parse(
     if not paths:
         _fail("At least one input file path is required.")
 
+    source_labels = [str(path) for path in paths]
+    if source_labels.count("-") > 1:
+        _fail("Standard input source '-' may be specified at most once.")
+
     merged_events: list[tuple[Any, int, int]] = []
     per_source: list[dict[str, Any]] = []
     dropped_line_diagnostics: list[dict[str, Any]] = []
     remaining_diagnostics = diagnostics_limit
 
-    for source_index, path in enumerate(paths):
-        events, summary = _read_events_with_summary(path, diagnostics_limit=remaining_diagnostics)
+    for source_index, (path, source_label) in enumerate(zip(paths, source_labels, strict=True)):
+        if source_label == "-":
+            events, summary = _read_events_from_stdin(diagnostics_limit=remaining_diagnostics)
+        else:
+            events, summary = _read_events_with_summary(path, diagnostics_limit=remaining_diagnostics)
         merged_events.extend((event, source_index, event_index) for event_index, event in enumerate(events))
 
         source_summary = dict(summary)
@@ -129,7 +155,7 @@ def _read_events_for_parse(
         dropped_line_diagnostics.extend(source_diagnostics)
         remaining_diagnostics = max(0, diagnostics_limit - len(dropped_line_diagnostics))
 
-        per_source.append({"path": str(path), **source_summary})
+        per_source.append({"path": source_label, **source_summary})
 
     merged_events.sort(key=lambda item: (item[0].timestamp, item[1], item[2]))
     all_events = [item[0] for item in merged_events]
@@ -344,6 +370,21 @@ def timeline(
         max=1.0,
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
+    component: list[str] | None = typer.Option(
+        None,
+        "--component",
+        help="Include only events whose component exactly matches this value. Repeat to widen the slice.",
+    ),
+    level: list[str] | None = typer.Option(
+        None,
+        "--level",
+        help="Include only events whose level matches this value (case-insensitive). Repeat to widen the slice.",
+    ),
+    correlation_id: list[str] | None = typer.Option(
+        None,
+        "--correlation-id",
+        help="Include only events whose correlation ID exactly matches this value. Repeat to widen the slice.",
+    ),
 ) -> None:
     """Generate a timeline markdown file from one or more log files."""
     events, summary = _read_events_for_parse(paths)
@@ -351,7 +392,13 @@ def timeline(
     if strict_error:
         _fail(strict_error)
 
-    content = build_timeline(events)
+    filtered_events = _apply_event_filters(
+        events,
+        components=component,
+        levels=level,
+        correlation_ids=correlation_id,
+    )
+    content = build_timeline(filtered_events)
     _write_output(out, content)
     if out != "-":
         typer.echo(f"Wrote timeline to {out}")
@@ -374,6 +421,21 @@ def runbook(
         max=1.0,
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
+    component: list[str] | None = typer.Option(
+        None,
+        "--component",
+        help="Include only events whose component exactly matches this value. Repeat to widen the slice.",
+    ),
+    level: list[str] | None = typer.Option(
+        None,
+        "--level",
+        help="Include only events whose level matches this value (case-insensitive). Repeat to widen the slice.",
+    ),
+    correlation_id: list[str] | None = typer.Option(
+        None,
+        "--correlation-id",
+        help="Include only events whose correlation ID exactly matches this value. Repeat to widen the slice.",
+    ),
 ) -> None:
     """Generate a runbook skeleton from one or more log files."""
     events, summary = _read_events_for_parse(paths)
@@ -381,7 +443,13 @@ def runbook(
     if strict_error:
         _fail(strict_error)
 
-    content = build_runbook(events, title)
+    filtered_events = _apply_event_filters(
+        events,
+        components=component,
+        levels=level,
+        correlation_ids=correlation_id,
+    )
+    content = build_runbook(filtered_events, title)
     _write_output(out, content)
     if out != "-":
         typer.echo(f"Wrote runbook to {out}")

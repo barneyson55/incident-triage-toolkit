@@ -6,6 +6,7 @@ from triage_toolkit.parser import (
     parse_json_line,
     parse_line,
     parse_line_with_reason,
+    parse_lines_with_summary,
     parse_text_line,
 )
 
@@ -92,6 +93,24 @@ def test_parse_stats_summary_with_dropped_diagnostics_is_deterministic_and_bound
             "reason": "invalid_timestamp",
             "raw_line": '{"timestamp":"bad-ts","message":"broken"}',
         },
+    ]
+
+
+def test_parse_lines_with_summary_accepts_stable_stdin_source_label():
+    events, summary = parse_lines_with_summary(
+        ["bad-line", "2025-01-01T00:00:01Z INFO api: ok"],
+        source_path="-",
+        diagnostics_limit=1,
+    )
+
+    assert len(events) == 1
+    assert summary["dropped_line_diagnostics"] == [
+        {
+            "source_path": "-",
+            "line_number": 1,
+            "reason": "unrecognized_text",
+            "raw_line": "bad-line",
+        }
     ]
 
 
