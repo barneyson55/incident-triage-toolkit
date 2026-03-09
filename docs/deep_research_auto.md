@@ -1,114 +1,71 @@
 # deep_research_auto.md
 
-Generated: 2026-03-09 08:41 UTC  
+Generated: 2026-03-09 16:57 UTC  
 Repository: `incident-triage-toolkit`  
-Scope: architecture/roadmap deep-research pass to keep `docs/ai_todo.md` continuously actionable and impact-prioritized.
+Scope: refresh the docs-only engineering priority order so `docs/ai_todo.md` stays actionable against the live repo state.
 
-## Method
-
-### Repo evidence reviewed
+## Repo evidence reviewed
 - `docs/status.md`
 - `docs/critical_todo.md`
 - `docs/ai_todo.md` (pre-refresh)
-- `docs/user_todo.md`
 - `README.md`
 - `pyproject.toml`
-- `.github/workflows/ci.yml`
-- `Makefile`
-- `triage_toolkit/{cli.py,parser.py,models.py,timeline.py,runbook.py,utils.py,__main__.py}`
-- `tests/{test_cli.py,test_parser.py,test_timeline.py,test_runbook.py,test_utils.py,test_main.py}`
-- `samples/{app.log,app.jsonl,http.log}`
-- working-tree diff for `README.md`, `tests/test_cli.py`, and `triage_toolkit/cli.py`
+- `triage_toolkit/{cli.py,models.py,parser.py,runbook.py,timeline.py}`
+- `tests/{test_cli.py,test_parser.py,test_runbook.py,test_timeline.py}`
 
-### Local verification run
-- `git status --short` ⚠️ working tree not clean; active non-doc edits already exist in `README.md`, `tests/test_cli.py`, and `triage_toolkit/cli.py`
-- `make test` ✅ (65 passed)
-- `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and multiple_inputs"` ✅ (3 passed)
-- `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88` ✅ (98.01%)
+## Local verification run
+- `git status --short --branch` ✅ clean `main...origin/main`
+- `make test` ✅ (`85 passed`)
 
-### Minimal external validation used
-- JSON Lines guidance: line-oriented data should be processable one record at a time and works well with shell pipelines/log files — supports prioritizing stdin-friendly ergonomics. Source: https://jsonlines.org/
-- Semantic Versioning 2.0.0: backward-compatible contract additions should map to MINOR bumps; incompatible machine-readable contract changes should map to MAJOR bumps. Source: https://semver.org/
+## Live architecture snapshot
+1. **The core CLI baseline is healthy**
+   - Multi-input ingestion, deterministic merge order, dropped-line diagnostics, filter parity, and stdin ingestion are all now shipped and documented.
+   - The repo is no longer bottlenecked on basic command-surface parity.
 
----
+2. **The biggest remaining product gap is the runbook output itself**
+   - `triage_toolkit/runbook.py` still produces a mostly boilerplate template with a thin symptom header.
+   - For real support handoff value, the next highest-leverage step is evidence-rich markdown, not more plumbing.
 
-## Architecture snapshot (repo-grounded)
+3. **There is now a real semantic drift between JSON and markdown outputs**
+   - `triage_toolkit/cli.py::_build_incident_summary()` counts error events only when `event.level.upper() == "ERROR"`.
+   - `triage_toolkit/timeline.py::is_error()` (used by timeline + runbook) also treats `CRITICAL`, `FATAL`, and message-level `error` hints as evidence.
+   - That means the same incident can produce conflicting JSON vs markdown interpretations.
 
-1. **The core pipeline is now stable and well-tested**
-   - `parser.py` handles ingestion + normalization.
-   - `timeline.py` and `runbook.py` render over normalized events.
-   - `cli.py` owns command wiring, strict parse gates, summary assembly, and output writing.
-   - Current verification is strong (`65 passed`, `98.01%` coverage), so the next roadmap should optimize operator usability and explainability, not foundational correctness.
+4. **Multi-input provenance is still incomplete for successful events**
+   - Dropped-line diagnostics preserve `source_path` and `line_number`, but successful parsed events do not.
+   - This weakens auditability and makes rich runbook evidence harder to trace back to the original source line.
 
-2. **The old highest-priority parity gap is already closed in the working tree**
-   - Local changes in `triage_toolkit/cli.py`, `tests/test_cli.py`, and `README.md` show `triage summary` now accepts multiple input paths and is covered by focused tests.
-   - That means `docs/status.md` is now a lagging snapshot rather than the best reflection of repo reality.
-   - Result: ITK-014 should move out of the open queue and the next bottleneck becomes post-parse explainability.
+5. **Richer evidence will increase safe-sharing pressure**
+   - The toolkit already exposes raw dropped lines when diagnostics are enabled.
+   - If richer evidence excerpts are added next, the product should offer deterministic redaction rather than depend entirely on upstream manual scrubbing.
 
-3. **Strict parse quality is strong, but failure explainability is weak**
-   - Parse/timeline/runbook/summary now have good deterministic behavior and quality gates.
-   - Operators still only get aggregate drop counts and reason buckets.
-   - The highest-confidence next product improvement is a deterministic, bounded dropped-line diagnostics surface.
+## Roadmap decisions derived from the current repo
 
-4. **The highest remaining workflow leverage is operator ergonomics**
-   - Filtering by component/level/correlation ID would remove a lot of manual shell work for noisy incidents.
-   - Stdin support would unlock the natural operating mode for a line-oriented CLI (`kubectl logs`, `journalctl`, pasted snippets, pipeline transforms).
-   - Both of these improve day-2 usage more than adding another internal-quality meta-task.
+### P1 — ITK-017: Make runbook output evidence-driven
+**Why now:** highest user-visible product gap after the parser/CLI groundwork is complete.
 
-5. **Runbook enrichment is valuable, but should consume stabilized evidence surfaces**
-   - The runbook is already deterministic and useful as a starter template.
-   - Once diagnostics/filtering/input ergonomics are settled, runbook sections can be upgraded with stronger evidence without duplicating business logic.
-   - Sequencing runbook enrichment after those surfaces reduces churn in markdown contract design.
+### P1 — ITK-019: Unify incident evidence semantics across `summary`, `timeline`, and `runbook`
+**Why next:** once the runbook grows stronger, conflicting error logic between JSON and markdown becomes a trust problem.
 
-6. **Broad parser-format expansion is still not evidence-backed**
-   - The repo contains only a small representative sample corpus.
-   - There is still no stored production corpus showing that key-value logs, multiline stack traces, or nested JSON payloads are the most urgent next step.
-   - Expanding format support now would be more speculative than improving diagnostics and ergonomics.
+### P1 — ITK-020: Preserve source provenance for successful parsed events and rendered evidence
+**Why third:** multi-input value is materially higher when every evidence row can be traced back to its source file/stdin label and original line.
 
----
+### P2 — ITK-021: Add deterministic redaction controls for diagnostics and evidence surfaces
+**Why later:** this becomes more important as evidence surfaces become richer, but it should build on the upgraded output contracts above.
 
-## Roadmap decisions derived from the evidence
-
-### P1 — ITK-015: Add deterministic dropped-line diagnostics
-**Why now:** the toolkit already prevents silent parse loss, but it still does not explain rejected input well enough for high-trust incident use.
-
-### P1 — ITK-016: Add deterministic incident-slicing filters
-**Why next:** filtering by component/level/correlation ID is the cleanest operator-ergonomics improvement visible from the current command surface.
-
-### P1 — ITK-018: Support stdin ingestion (`-`)
-**Why third:** JSONL-style, line-oriented tooling is strongest when it works naturally in shell pipelines. This improves all command surfaces, not just one output.
-
-### P2 — ITK-017: Enrich runbook output with stronger evidence
-**Why later:** worthwhile for handoffs and RCA starts, but it should follow the diagnostics/filter/input work so the markdown contract builds on settled analysis rules.
-
-### Explicit deferral: broad parser-format expansion
-**Reason to defer:** current repo evidence still does not justify which additional log shapes matter most, so parser widening would be guesswork-heavy.
-
----
-
-## Assumptions
-- Multi-file incident handling is already materially solved locally by the ITK-014 working-tree changes.
-- Operators care most about deterministic outputs, debuggable failures, and shell-friendly workflows.
-- UTC should remain canonical while source-time provenance stays additive.
-- Machine-readable contract changes should follow explicit versioning discipline.
-- The repo is mature enough that the next gains come from usability and trust, not basic test scaffolding.
-
-## Unknowns
-- No representative production log corpus is stored in the repo beyond small samples/fixtures.
-- No documented redaction policy exists yet for exposing raw dropped lines in diagnostics.
-- No final decision exists yet on whether diagnostics should live inside parse output or behind a dedicated command/flag.
-- No formal ranking exists between filter types beyond the obvious first wave (`component`, `level`, `correlation_id`).
-- No explicit stdin source-labeling convention is documented yet for mixed file + stdin runs.
+## Explicitly de-prioritized in this pass
+- Broad parser-format expansion: still not strongly justified by the small bundled sample corpus.
+- More foundational CLI plumbing: current command coverage and tests are already strong.
+- Non-doc source changes: out of scope for this maintenance pass.
 
 ## Risks / blockers to monitor
-- `docs/status.md` is stale relative to the verified working tree and could mislead the next maintenance pass if treated as canonical.
-- There are already active local source edits in progress; future doc refreshes should avoid assuming a clean baseline.
-- Dropped-line diagnostics can expose sensitive raw text unless bounds/redaction rules are written first.
-- Filters must not weaken strict parse semantics by evaluating only the filtered subset.
-- Stdin support needs deterministic ordering and labeling rules when mixed with file inputs.
+- Evidence-driven runbook work can fork the analysis model if it does not reuse shared helpers.
+- Adding provenance changes the parse contract and will require careful schema-version discipline.
+- Built-in redaction must be documented as best-effort rather than perfect secrecy.
+- Future maintenance passes should not rely on stale pre-ITK-016 / pre-ITK-018 research notes.
 
 ## Priority mapping reflected in `docs/ai_todo.md`
-1. ITK-015 — dropped-line diagnostics
-2. ITK-016 — deterministic filters
-3. ITK-018 — stdin ingestion
-4. ITK-017 — evidence-rich runbook
+1. ITK-017 — evidence-driven runbook
+2. ITK-019 — unified evidence semantics
+3. ITK-020 — source provenance for successful events
+4. ITK-021 — deterministic redaction controls

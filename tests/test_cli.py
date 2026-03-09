@@ -312,7 +312,8 @@ def test_runbook_accepts_stdin_only():
 
     assert result.exit_code == 0
     assert result.stdout.startswith("# Incident: STDIN\n")
-    assert "- Error events: 1 of 1 total" in result.stdout
+    assert "- Evidence events: 1 of 1 total" in result.stdout
+    assert "- Top error signatures: `failed cid=<id>` (1)" in result.stdout
 
 
 def test_parse_missing_file_error():
@@ -885,8 +886,9 @@ def test_runbook_filters_slice_events_with_repeated_or_flags_and_and_across_fiel
     assert result.exit_code == 0
     assert result.stdout.startswith("# Incident: Filtered\n")
     assert "- First observed: `2025-01-01T00:00:02+00:00`" in result.stdout
-    assert "- Error events: 2 of 2 total" in result.stdout
-    assert "- Suspected components: api, worker" in result.stdout
+    assert "- Evidence events: 2 of 2 total" in result.stdout
+    assert "- Suspected components: api (1), worker (1)" in result.stdout
+    assert "- Representative correlation IDs: `c-2`" in result.stdout
 
 
 def test_runbook_filters_do_not_bypass_strict_parse_gate_on_raw_ingestion(tmp_path):

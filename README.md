@@ -170,6 +170,16 @@ Filter semantics:
 - If filters match no events, `summary` counters become zero/empty while `timeline` and `runbook`
   render their empty-state templates; in all cases the raw ingestion quality remains unchanged.
 
+### Runbook output structure
+`triage runbook` now includes deterministic evidence sections derived from the parsed event slice:
+- incident window, first/last observed timestamps, and evidence-event counts
+- top normalized error signatures with counts and first/last seen timestamps
+- suspected components with error counts
+- representative correlation IDs from the evidence slice
+- 1-3 representative failures, chosen deterministically as the earliest occurrence for each top signature
+
+The runbook remains UTC-first. If filters remove all matching events (or no error-like evidence exists in the slice), the markdown switches to an explicit no-evidence template instead of generic filler.
+
 ## Makefile (Linux/macOS / WSL)
 ```bash
 make setup

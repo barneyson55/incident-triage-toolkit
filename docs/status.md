@@ -9,22 +9,24 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- ITK-018 completed (deterministic stdin ingestion across CLI commands):
-  - `triage_toolkit/cli.py`: `parse`, `summary`, `timeline`, and `runbook` now accept `-` as a UTF-8 stdin source.
-  - Mixing is explicit and deterministic: stdin may appear at most once, stdin is labeled as `-` in parse summaries/diagnostics, and merged event ordering still follows UTC timestamp → CLI input order → line order within source.
-  - Strict parse gates still evaluate the full raw ingested input when stdin participates, so pipe-based workflows cannot bypass parse-quality checks.
-  - `tests/test_cli.py`: added stdin-only coverage for all four commands, mixed file+stdin ordering coverage, duplicate-stdin rejection, and strict-parse stdin regression coverage.
-  - `tests/test_parser.py`: added parser-level coverage for the stable stdin source label in dropped-line diagnostics.
-  - `README.md`: documented stdin examples, mixing rules, and a PowerShell caveat.
+- ITK-017 completed (runbook output is now evidence-driven instead of mostly boilerplate):
+  - Added shared evidence helpers in `triage_toolkit/evidence.py` for ordered event handling, error classification, normalized signatures, component ranking, and representative correlation IDs.
+  - `triage_toolkit/runbook.py` now renders a deterministic evidence snapshot with incident window, first/last observed timestamps, evidence-event counts, top error signatures, suspected components with counts, representative correlation IDs, and 1-3 representative failures chosen as the earliest occurrence for each top signature.
+  - Empty or filter-miss runbooks now use an explicit no-evidence template instead of generic filler.
+  - `triage_toolkit/timeline.py` now reuses the shared evidence helpers so markdown evidence logic does not fork between timeline and runbook.
+  - `tests/test_runbook.py`, `tests/test_cli.py`, and `tests/fixtures/golden/runbook_output.md` were updated to lock the richer markdown contract and representative-failure selection.
+  - `README.md` documents the upgraded runbook evidence structure and how filtered slices affect the evidence sections.
 - Why:
-  - Operators can now use shell-native incident workflows (`kubectl logs`, `journalctl`, pasted snippets, prefiltered pipelines) without temp files.
+  - The biggest remaining operator-facing gap was that the runbook read like a template instead of a strong handoff artifact. The richer evidence snapshot makes the markdown output materially more useful without changing the CLI surface.
 - Risks / follow-ups:
-  - Current stdin handling reads the provided stdin payload once per command invocation, which is correct for the CLI contract but should stay documented if streaming semantics ever expand.
-  - Next highest-impact product gap is ITK-017 (make runbook output more evidence-driven).
+  - `triage summary` still uses narrower error semantics than timeline/runbook, so JSON and markdown outputs can still disagree about what counts as incident evidence.
+  - Successful parsed events still lack source provenance (source path / line number), which limits how traceable the new evidence snippets can be in multi-input incidents.
+  - Richer evidence excerpts increase safe-sharing pressure; deterministic redaction is still a follow-up item.
 - Verification run:
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "stdin or standard_input"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "stream or stdin"` ✅
-  - `make test` ✅
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "golden or evidence or example or signature"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "runbook and (golden or filter or strict)"` ✅
+  - `make lint` ✅
+  - `make test` ✅ (87 passed)
 
 ## Next
-- Start ITK-017 by making runbook output more evidence-driven while preserving deterministic ordering and markdown contract stability.
+- Start ITK-019 by unifying incident evidence semantics across `summary`, `timeline`, and `runbook` so JSON and markdown outputs stop disagreeing about the same incident.

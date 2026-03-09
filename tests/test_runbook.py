@@ -15,6 +15,7 @@ def test_runbook_headings():
     runbook = build_runbook([event for event in events if event], "Incident: Sample")
     for heading in [
         "## Symptoms",
+        "## Evidence",
         "## Checks",
         "## Workaround",
         "## Fix/Escalation",
@@ -33,6 +34,7 @@ def test_runbook_first_observed_is_normalized_to_utc():
     runbook = build_runbook([event for event in events if event], "Incident: Sample")
 
     assert "- First observed: `2025-01-01T00:00:01+00:00`" in runbook
+    assert "- Last observed: `2025-01-01T00:00:02+00:00`" in runbook
     assert "+02:00" not in runbook
     assert "-05:00" not in runbook
 
@@ -49,8 +51,41 @@ def test_runbook_filtered_subset_uses_filtered_first_observed_and_counts():
     runbook = build_runbook(filtered, "Incident: Filtered")
 
     assert "- First observed: `2025-01-01T00:00:02+00:00`" in runbook
-    assert "- Error events: 2 of 2 total" in runbook
-    assert "- Suspected components: api, worker" in runbook
+    assert "- Last observed: `2025-01-01T00:00:03+00:00`" in runbook
+    assert "- Evidence events: 2 of 2 total" in runbook
+    assert "- Suspected components: api (1), worker (1)" in runbook
+    assert "- Representative correlation IDs: `c-2`" in runbook
+
+
+def test_runbook_evidence_sections_are_deterministic_and_use_earliest_example_per_signature():
+    lines = [
+        "2025-01-01T00:00:04Z CRITICAL db: query failed cid=q-10",
+        "2025-01-01T00:00:03Z ERROR api: timeout cid=c-2",
+        "2025-01-01T00:00:01Z ERROR db: query failed cid=q-9",
+        "2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2",
+    ]
+    events = [parse_line(line) for line in lines]
+    runbook = build_runbook([event for event in events if event], "Incident: Evidence")
+
+    assert "- Top error signatures: `query failed cid=<id>` (2), `timeout cid=<id>` (2)" in runbook
+    assert "- query failed cid=<id> (count: 2, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:04+00:00, components: db)" in runbook
+    assert "- timeout cid=<id> (count: 2, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:03+00:00, components: worker, api)" in runbook
+    assert "- `2025-01-01T00:00:01+00:00` `ERROR` `db` — query failed cid=q-9" in runbook
+    assert "- `2025-01-01T00:00:02+00:00` `ERROR` `worker` — timeout cid=c-2" in runbook
+    assert "query failed cid=q-10" not in runbook
+
+
+def test_runbook_empty_state_uses_explicit_no_evidence_template():
+    runbook = build_runbook([], "Incident: Empty")
+
+    assert "- Incident window: `n/a`" in runbook
+    assert "- Evidence events: 0 of 0 total" in runbook
+    assert "- Top error signatures: none" in runbook
+    assert "- Suspected components: none" in runbook
+    assert "- Representative correlation IDs: none" in runbook
+    assert "- No parsed events matched the selected inputs or filters." in runbook
+    assert "- None detected in parsed input." in runbook
+    assert "- No representative failures available." in runbook
 
 
 def test_runbook_golden_output_is_deterministic():

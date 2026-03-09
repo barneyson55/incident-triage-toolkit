@@ -1,26 +1,40 @@
 # Incident: Golden
 
 ## Symptoms
+- Incident window: `2025-03-01T10:00:00+00:00` → `2025-03-01T10:00:04+00:00`
 - First observed: `2025-03-01T10:00:00+00:00`
-- Error events: 2 of 4 total
-- Suspected components: db, api
+- Last observed: `2025-03-01T10:00:04+00:00`
+- Evidence events: 2 of 4 total
+- Top error signatures: `query failed cid=<id>` (1), `request # for user #` (1)
+- Suspected components: db (1), api (1)
+- Representative correlation IDs: `q-9`
+
+## Evidence
+
+### Top Error Signatures
+- query failed cid=<id> (count: 1, first: 2025-03-01T10:00:02+00:00, last: 2025-03-01T10:00:02+00:00, components: db)
+- request # for user # (count: 1, first: 2025-03-01T10:00:04+00:00, last: 2025-03-01T10:00:04+00:00, components: api)
+
+### Example Failures
+- `2025-03-01T10:00:02+00:00` `ERROR` `db` — query failed cid=q-9
+- `2025-03-01T10:00:04+00:00` `ERROR` `api` — request 500 for user 42
 
 ## Checks
-- Review recent deployments or config changes for suspected components.
-- Validate health endpoints and dependency connectivity.
-- Inspect logs for correlation IDs tied to failures.
+- Prioritize health and dependency checks for: db, api.
+- Trace these IDs through adjacent logs and traces: q-9.
+- Compare the first and last evidence timestamps against deployments or config changes during `2025-03-01T10:00:00+00:00` → `2025-03-01T10:00:04+00:00`.
 
 ## Workaround
-- Reduce traffic or disable the failing feature if possible.
-- Roll back or restart the affected service to restore stability.
+- Reduce traffic to, disable risky flows in, or otherwise contain the implicated components: db, api.
+- Roll back, restart, or fail over the affected service only if that action is consistent with the evidence above.
 
 ## Fix/Escalation
-- Identify the root cause from error signatures and stack traces.
-- Escalate to the owning team with a timeline and sample logs.
+- Escalate with the incident window, top signatures, and representative failures captured above: `query failed cid=<id>` (1), `request # for user #` (1).
+- Attach the incident timeline and any supporting logs, dashboards, or deployment links needed to reproduce the failure.
 
 ## Verification
-- Confirm error rate returns to baseline.
-- Re-run critical user flows and verify healthy responses.
+- Confirm the top signatures stop recurring after mitigation: `query failed cid=<id>` (1), `request # for user #` (1).
+- Re-run the critical user flows that touch the implicated components and verify healthy responses.
 
 ## Notes
-- Add incident-specific observations, links, and decisions here.
+- Add incident-specific decisions, links, owners, and next actions here.
