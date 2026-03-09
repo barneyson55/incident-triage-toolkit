@@ -9,24 +9,24 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- ITK-019 completed (incident evidence semantics are now shared across `summary`, `timeline`, and `runbook`):
-  - `triage_toolkit/cli.py::_build_incident_summary()` now reuses the shared evidence helpers instead of counting only `level == "ERROR"` and grouping raw messages independently.
-  - `triage_toolkit/evidence.py` now exposes shared `top_error_signatures()` output shaping for JSON and makes signature/component tie-breaks explicit and deterministic (`count DESC`, then earliest evidence timestamp, then name/signature text).
-  - `summary.error_count` now matches markdown evidence classification for `ERROR`, `CRITICAL`, `FATAL`, and lower-level messages containing `error`.
-  - `summary.top_error_signatures`, timeline `Notable Errors`, and runbook evidence/symptom sections now all use the same normalized signature rules (lowercase, `cid=<id>`, digits -> `#`).
-  - `README.md` now documents the canonical evidence-classification and signature-ordering rules.
-  - `tests/test_cli.py`, `tests/test_timeline.py`, and `tests/test_runbook.py` now lock parity coverage for `CRITICAL`, `FATAL`, and message-hint evidence.
+- ITK-020 completed (successful parsed events and rendered evidence now preserve source provenance):
+  - `triage_toolkit/models.py::LogEvent` now carries `source_path` and `line_number`, and the parse JSON schema moved to `1.2.0`.
+  - `triage_toolkit/parser.py::parse_lines_with_summary()` now stamps each successful event with its stable source label (`-` for stdin, full path for files) plus original 1-based line number without changing parse gates or merge ordering.
+  - `triage_toolkit/timeline.py` now renders a concise `Source` column as `source_path:line_number` for each timeline row.
+  - `triage_toolkit/runbook.py` now cites the same provenance in top-signature evidence (`example: ...`) and example-failure bullets.
+  - `README.md` and golden fixtures now document/lock the new schema and provenance rendering contract.
 - Why:
-  - The repo was undermining operator trust by letting JSON and markdown disagree about the same incident slice. This closes that semantic gap without changing the CLI surface.
+  - Multi-input incidents are much more auditable when normalized events can be traced back to the exact file/stdin source and original line.
 - Risks / follow-ups:
-  - Successful parsed events still lack source provenance (source path / line number), which limits how traceable the normalized evidence snippets can be in multi-input incidents.
   - Dropped-line diagnostics and evidence excerpts still need deterministic redaction controls before safe-sharing is strong enough by default.
+  - The next useful upgrade is per-source evidence concentration so operators can see which source dominates the incident slice.
 - Verification run:
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and (critical or fatal or error)"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "critical or fatal or error"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "critical or fatal or error"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "source and line"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse and provenance"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "provenance"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "provenance"` ✅
   - `make lint` ✅
-  - `make test` ✅ (91 passed)
+  - `make test` ✅ (94 passed)
 
 ## Next
-- Start ITK-020 by preserving source provenance for successful parsed events and rendered evidence so operators can trace normalized evidence back to the original file/stdin source and line.
+- Start ITK-021 by adding deterministic redaction controls for diagnostics and evidence surfaces.
