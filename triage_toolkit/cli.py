@@ -227,7 +227,7 @@ def parse(
 
 @app.command()
 def summary(
-    path: Path,
+    paths: list[Path] = typer.Argument(..., help="One or more input log files."),
     out: str = typer.Option(..., "--out", "-o", help="Output path or '-' for stdout."),
     strict: bool = typer.Option(
         False,
@@ -242,8 +242,8 @@ def summary(
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
 ) -> None:
-    """Generate a machine-readable incident summary JSON output."""
-    events, parse_summary = _read_events_with_summary(path)
+    """Generate a machine-readable incident summary JSON output from one or more log files."""
+    events, parse_summary = _read_events_for_parse(paths)
     strict_error = _strict_parse_error(parse_summary, max_drop_ratio) if strict else None
     if strict_error:
         _fail(strict_error)

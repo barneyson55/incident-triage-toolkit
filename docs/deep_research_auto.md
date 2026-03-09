@@ -1,6 +1,6 @@
 # deep_research_auto.md
 
-Generated: 2026-02-17 12:13 UTC  
+Generated: 2026-03-09 08:41 UTC  
 Repository: `incident-triage-toolkit`  
 Scope: architecture/roadmap deep-research pass to keep `docs/ai_todo.md` continuously actionable and impact-prioritized.
 
@@ -10,88 +10,105 @@ Scope: architecture/roadmap deep-research pass to keep `docs/ai_todo.md` continu
 - `docs/status.md`
 - `docs/critical_todo.md`
 - `docs/ai_todo.md` (pre-refresh)
+- `docs/user_todo.md`
 - `README.md`
-- `triage_toolkit/{cli.py,parser.py,utils.py,timeline.py,runbook.py,models.py,__main__.py}`
-- `tests/{test_cli.py,test_parser.py,test_timeline.py,test_runbook.py,test_main.py}`
-- `.github/workflows/ci.yml`
 - `pyproject.toml`
+- `.github/workflows/ci.yml`
 - `Makefile`
+- `triage_toolkit/{cli.py,parser.py,models.py,timeline.py,runbook.py,utils.py,__main__.py}`
+- `tests/{test_cli.py,test_parser.py,test_timeline.py,test_runbook.py,test_utils.py,test_main.py}`
+- `samples/{app.log,app.jsonl,http.log}`
+- working-tree diff for `README.md`, `tests/test_cli.py`, and `triage_toolkit/cli.py`
 
 ### Local verification run
-- `make lint` ✅
-- `make test` ✅ (22 passed)
-- `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=85` ✅ (85.46%)
+- `git status --short` ⚠️ working tree not clean; active non-doc edits already exist in `README.md`, `tests/test_cli.py`, and `triage_toolkit/cli.py`
+- `make test` ✅ (65 passed)
+- `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and multiple_inputs"` ✅ (3 passed)
+- `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing --cov-fail-under=88` ✅ (98.01%)
 
 ### Minimal external validation used
-- JSON Lines framing requirements (UTF-8, one JSON value per line): https://jsonlines.org/
-- RFC 3339 UTC + offset timestamp profile: https://www.rfc-editor.org/rfc/rfc3339
-- `pytest-cov` coverage gate option (`--cov-fail-under`): https://pytest-cov.readthedocs.io/en/stable/config.html
-- Typer testing pattern via `CliRunner`: https://typer.tiangolo.com/tutorial/testing/
+- JSON Lines guidance: line-oriented data should be processable one record at a time and works well with shell pipelines/log files — supports prioritizing stdin-friendly ergonomics. Source: https://jsonlines.org/
+- Semantic Versioning 2.0.0: backward-compatible contract additions should map to MINOR bumps; incompatible machine-readable contract changes should map to MAJOR bumps. Source: https://semver.org/
 
 ---
 
 ## Architecture snapshot (repo-grounded)
 
-1. **Strict parse-quality gates are now consistently wired across all user-facing commands**
-   - `parse`, `timeline`, and `runbook` all use `_read_events_with_summary()` + `_strict_parse_error()` with shared semantics (`triage_toolkit/cli.py:66-113,116-204`).
-   - This closes earlier correctness asymmetry where only parse JSON was guarded.
+1. **The core pipeline is now stable and well-tested**
+   - `parser.py` handles ingestion + normalization.
+   - `timeline.py` and `runbook.py` render over normalized events.
+   - `cli.py` owns command wiring, strict parse gates, summary assembly, and output writing.
+   - Current verification is strong (`65 passed`, `98.01%` coverage), so the next roadmap should optimize operator usability and explainability, not foundational correctness.
 
-2. **The main remaining operational bottleneck is eager ingestion**
-   - `parse_file_with_summary()` still does `Path.read_text(...).splitlines()` (`triage_toolkit/parser.py:183-185`), which scales memory with full file size.
-   - For incident-sized logs, this is the most direct reliability risk (memory pressure / failure before useful output).
+2. **The old highest-priority parity gap is already closed in the working tree**
+   - Local changes in `triage_toolkit/cli.py`, `tests/test_cli.py`, and `README.md` show `triage summary` now accepts multiple input paths and is covered by focused tests.
+   - That means `docs/status.md` is now a lagging snapshot rather than the best reflection of repo reality.
+   - Result: ITK-014 should move out of the open queue and the next bottleneck becomes post-parse explainability.
 
-3. **UTC canonicalization is correct, but source-timezone provenance is currently dropped from machine output**
-   - Canonical UTC normalization is enforced in timestamp parsing (`triage_toolkit/utils.py:17-41`) and appears in timeline/runbook rendering.
-   - Parse JSON output currently emits only normalized `timestamp` (`triage_toolkit/models.py:17-24`), with no dedicated `source_timestamp`/`source_offset` fields.
-   - This creates downstream compatibility risk for consumers that relied on original offset representation.
+3. **Strict parse quality is strong, but failure explainability is weak**
+   - Parse/timeline/runbook/summary now have good deterministic behavior and quality gates.
+   - Operators still only get aggregate drop counts and reason buckets.
+   - The highest-confidence next product improvement is a deterministic, bounded dropped-line diagnostics surface.
 
-4. **Quality gate exists in CI, but confidence headroom is thin and branch distribution is uneven**
-   - CI enforces coverage floor (`.github/workflows/ci.yml:27-28`).
-   - Current total coverage passes narrowly at 85.46%; `cli.py` remains the weakest area (69%) per local run.
-   - Practical implication: one medium refactor can drop below threshold unless targeted tests expand around CLI/file-error branches.
+4. **The highest remaining workflow leverage is operator ergonomics**
+   - Filtering by component/level/correlation ID would remove a lot of manual shell work for noisy incidents.
+   - Stdin support would unlock the natural operating mode for a line-oriented CLI (`kubectl logs`, `journalctl`, pasted snippets, pipeline transforms).
+   - Both of these improve day-2 usage more than adding another internal-quality meta-task.
 
-5. **Automation contract is still incomplete**
-   - Existing outputs are parser JSON + markdown timeline/runbook (README command surface only: `README.md:39-42`).
-   - No dedicated machine-readable incident summary contract yet; this blocks easy integration with ticket enrichers and alert pipelines.
+5. **Runbook enrichment is valuable, but should consume stabilized evidence surfaces**
+   - The runbook is already deterministic and useful as a starter template.
+   - Once diagnostics/filtering/input ergonomics are settled, runbook sections can be upgraded with stronger evidence without duplicating business logic.
+   - Sequencing runbook enrichment after those surfaces reduces churn in markdown contract design.
+
+6. **Broad parser-format expansion is still not evidence-backed**
+   - The repo contains only a small representative sample corpus.
+   - There is still no stored production corpus showing that key-value logs, multiline stack traces, or nested JSON payloads are the most urgent next step.
+   - Expanding format support now would be more speculative than improving diagnostics and ergonomics.
 
 ---
 
-## Impact-prioritized roadmap decision
+## Roadmap decisions derived from the evidence
 
-### P0 — ITK-005: Streaming ingestion for large-file safety
-**Why now:** highest engineering risk still open; directly tied to operational reliability under real incident volume.
+### P1 — ITK-015: Add deterministic dropped-line diagnostics
+**Why now:** the toolkit already prevents silent parse loss, but it still does not explain rejected input well enough for high-trust incident use.
 
-### P1 — ITK-010: Timezone provenance while preserving UTC canonical output
-**Why next:** mitigates compatibility fallout from UTC normalization without regressing ordering correctness.
+### P1 — ITK-016: Add deterministic incident-slicing filters
+**Why next:** filtering by component/level/correlation ID is the cleanest operator-ergonomics improvement visible from the current command surface.
 
-### P1 — ITK-008: Regression matrix expansion + stronger CI confidence margin
-**Why third:** coverage floor is already present, but currently near threshold; needs branch-depth expansion before larger feature work.
+### P1 — ITK-018: Support stdin ingestion (`-`)
+**Why third:** JSONL-style, line-oriented tooling is strongest when it works naturally in shell pipelines. This improves all command surfaces, not just one output.
 
-### P2 — ITK-007: Machine-readable incident summary
-**Why later:** high productization value, but should land on stable ingestion + parse contract + stronger regression guardrails.
+### P2 — ITK-017: Enrich runbook output with stronger evidence
+**Why later:** worthwhile for handoffs and RCA starts, but it should follow the diagnostics/filter/input work so the markdown contract builds on settled analysis rules.
+
+### Explicit deferral: broad parser-format expansion
+**Reason to defer:** current repo evidence still does not justify which additional log shapes matter most, so parser widening would be guesswork-heavy.
 
 ---
 
 ## Assumptions
-- Incident logs can be large enough for full-file ingestion to become an operational hazard.
-- UTC must remain canonical for ordering/timeline consistency.
-- Existing users likely need backward-compatible defaults; strictness should remain opt-in unless explicitly versioned.
-- Deterministic outputs are required for CI assertions and downstream automation.
+- Multi-file incident handling is already materially solved locally by the ITK-014 working-tree changes.
+- Operators care most about deterministic outputs, debuggable failures, and shell-friendly workflows.
+- UTC should remain canonical while source-time provenance stays additive.
+- Machine-readable contract changes should follow explicit versioning discipline.
+- The repo is mature enough that the next gains come from usability and trust, not basic test scaffolding.
 
 ## Unknowns
-- No documented performance SLO exists yet (max file size, runtime, memory budget).
-- No representative production corpus is available to quantify realistic drop ratios or component/error cardinality.
-- No formal parse JSON schema versioning contract exists yet for downstream consumers.
-- No clear consumer priority has been provided for summary schema fields beyond current proposal.
+- No representative production log corpus is stored in the repo beyond small samples/fixtures.
+- No documented redaction policy exists yet for exposing raw dropped lines in diagnostics.
+- No final decision exists yet on whether diagnostics should live inside parse output or behind a dedicated command/flag.
+- No formal ranking exists between filter types beyond the obvious first wave (`component`, `level`, `correlation_id`).
+- No explicit stdin source-labeling convention is documented yet for mixed file + stdin runs.
 
 ## Risks / blockers to monitor
-- Streaming refactor can subtly alter newline/encoding/empty-line behavior unless fixture coverage is expanded first.
-- Provenance fields can create compatibility churn if schema changes are undocumented or unversioned.
-- Raising coverage floor too early may create CI friction; should be coupled to targeted tests and phased upward.
-- Summary output can ossify quickly without explicit schema/version policy.
+- `docs/status.md` is stale relative to the verified working tree and could mislead the next maintenance pass if treated as canonical.
+- There are already active local source edits in progress; future doc refreshes should avoid assuming a clean baseline.
+- Dropped-line diagnostics can expose sensitive raw text unless bounds/redaction rules are written first.
+- Filters must not weaken strict parse semantics by evaluating only the filtered subset.
+- Stdin support needs deterministic ordering and labeling rules when mixed with file inputs.
 
 ## Priority mapping reflected in `docs/ai_todo.md`
-1. ITK-005 (P0)
-2. ITK-010 (P1)
-3. ITK-008 (P1)
-4. ITK-007 (P2)
+1. ITK-015 — dropped-line diagnostics
+2. ITK-016 — deterministic filters
+3. ITK-018 — stdin ingestion
+4. ITK-017 — evidence-rich runbook

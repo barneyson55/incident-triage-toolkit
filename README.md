@@ -40,16 +40,17 @@ triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 
 ## CLI Commands
 - `triage parse <path...> --out parsed.json`
-- `triage summary <path> --out summary.json`
+- `triage summary <path...> --out summary.json`
 - `triage timeline <path...> --out timeline.md`
 - `triage runbook <path...> --out runbook.md --title "Incident: ..."`
 
 ## Multi-input ingestion & deterministic merge semantics
-`parse`, `timeline`, and `runbook` accept multiple input files in one command.
+`parse`, `summary`, `timeline`, and `runbook` accept multiple input files in one command.
 
 Example:
 ```bash
 triage parse logs/api.log logs/web.log logs/db.log --out parsed.json
+triage summary logs/api.log logs/web.log logs/db.log --out summary.json
 triage timeline logs/api.log logs/web.log --out timeline.md
 triage runbook logs/api.log logs/web.log --out runbook.md --title "Incident: 2025-01-01"
 ```
@@ -109,8 +110,12 @@ Timeline and runbook outputs continue to render UTC timestamps only.
 - `triage summary` emits deterministic JSON with `schema_version: "1.0.0"`.
 - Top-level keys: `schema_version`, `incident_window`, `event_count`, `error_count`,
   `top_components`, `top_error_signatures`, `correlation_id_coverage`, `parse_summary`.
-- `incident_window.start/end` are canonical UTC ISO-8601 timestamps.
+- `incident_window.start/end` are canonical UTC ISO-8601 timestamps across the merged event set.
 - `top_components` and `top_error_signatures` are sorted by `count DESC`, then `name ASC`.
+- Multi-input runs use the same deterministic merge contract as `parse`/`timeline`/`runbook`
+  (UTC timestamp, then CLI input order, then line order within source).
+- `parse_summary` stays backward compatible for single-input runs; multi-input runs add ordered
+  `per_source` entries (in the exact CLI input order) alongside aggregate counters.
 
 ## Makefile (Linux/macOS / WSL)
 ```bash

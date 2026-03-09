@@ -319,6 +319,104 @@ def test_summary_stdout_returns_machine_readable_contract(tmp_path):
         "total_events": 3,
         "coverage_ratio": 0.666667,
     }
+    assert "per_source" not in payload["parse_summary"]
+
+
+def test_summary_multiple_inputs_merges_counts_and_incident_window(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:03Z ERROR db: connection timeout",
+                "bad-a",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_b.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: request accepted cid=c-1",
+                "2025-01-01T00:00:02Z ERROR web: connection timeout",
+                "bad-b",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["summary", str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["incident_window"] == {
+        "start": "2025-01-01T00:00:01+00:00",
+        "end": "2025-01-01T00:00:03+00:00",
+    }
+    assert payload["event_count"] == 3
+    assert payload["error_count"] == 2
+    assert payload["top_components"] == [
+        {"name": "api", "count": 1},
+        {"name": "db", "count": 1},
+        {"name": "web", "count": 1},
+    ]
+    assert payload["top_error_signatures"] == [{"name": "connection timeout", "count": 2}]
+    assert payload["correlation_id_coverage"] == {
+        "covered_events": 1,
+        "total_events": 3,
+        "coverage_ratio": 0.333333,
+    }
+    assert payload["parse_summary"] == {
+        "total_lines": 5,
+        "parsed_lines": 3,
+        "dropped_lines": 2,
+        "drop_ratio": 0.4,
+        "dropped_reasons": {"unrecognized_text": 2},
+        "per_source": [
+            {
+                "path": str(source_a),
+                "total_lines": 2,
+                "parsed_lines": 1,
+                "dropped_lines": 1,
+                "drop_ratio": 0.5,
+                "dropped_reasons": {"unrecognized_text": 1},
+            },
+            {
+                "path": str(source_b),
+                "total_lines": 3,
+                "parsed_lines": 2,
+                "dropped_lines": 1,
+                "drop_ratio": 0.333333,
+                "dropped_reasons": {"unrecognized_text": 1},
+            },
+        ],
+    }
+
+
+def test_summary_multiple_inputs_strict_uses_aggregate_drop_ratio(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text("2025-01-01T00:00:01Z INFO api: ok\n", encoding="utf-8")
+    source_b.write_text("bad-b\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "summary",
+            str(source_a),
+            str(source_b),
+            "--out",
+            "-",
+            "--strict",
+            "--max-drop-ratio",
+            "0.49",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
 
 
 def test_summary_strict_fails_when_no_parsed_lines(tmp_path):
