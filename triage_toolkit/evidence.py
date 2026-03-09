@@ -52,28 +52,45 @@ def build_signature_evidence(
     for event in error_events(events):
         grouped[normalize_error_message(event.message)].append(event)
 
-    ranked = sorted(grouped.items(), key=lambda item: len(item[1]), reverse=True)
+    evidence = [
+        SignatureEvidence(
+            signature=signature,
+            count=len(items),
+            first_seen=items[0].timestamp,
+            last_seen=items[-1].timestamp,
+            components=tuple(dict.fromkeys(event.component for event in items)),
+            representative=items[0],
+        )
+        for signature, items in grouped.items()
+    ]
+    ranked = sorted(
+        evidence,
+        key=lambda item: (-item.count, item.first_seen, item.signature),
+    )
     if limit is not None:
         ranked = ranked[:limit]
+    return ranked
 
-    evidence: list[SignatureEvidence] = []
-    for signature, items in ranked:
-        evidence.append(
-            SignatureEvidence(
-                signature=signature,
-                count=len(items),
-                first_seen=items[0].timestamp,
-                last_seen=items[-1].timestamp,
-                components=tuple(dict.fromkeys(event.component for event in items)),
-                representative=items[0],
-            )
-        )
-    return evidence
+
+def top_error_signatures(events: list[LogEvent], *, limit: int = 3) -> list[dict[str, int | str]]:
+    return [
+        {"name": item.signature, "count": item.count}
+        for item in build_signature_evidence(events, limit=limit)
+    ]
 
 
 def component_counts(events: list[LogEvent], *, limit: int = 5) -> list[tuple[str, int]]:
-    counts = Counter(event.component for event in error_events(events))
-    return counts.most_common(limit)
+    counts: Counter[str] = Counter()
+    first_seen: dict[str, datetime] = {}
+    for event in error_events(events):
+        counts[event.component] += 1
+        first_seen.setdefault(event.component, event.timestamp)
+
+    ranked = sorted(
+        counts.items(),
+        key=lambda item: (-item[1], first_seen[item[0]], item[0]),
+    )
+    return ranked[:limit]
 
 
 def representative_correlation_ids(events: list[LogEvent], *, limit: int = 5) -> list[str]:

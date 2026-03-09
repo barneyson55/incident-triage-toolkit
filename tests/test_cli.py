@@ -493,7 +493,10 @@ def test_summary_stdout_returns_machine_readable_contract(tmp_path):
     assert payload["event_count"] == 3
     assert payload["error_count"] == 2
     assert payload["top_components"][0] == {"name": "db", "count": 2}
-    assert payload["top_error_signatures"][0] == {"name": "connection timeout", "count": 1}
+    assert payload["top_error_signatures"] == [
+        {"name": "connection timeout cid=<id>", "count": 1},
+        {"name": "connection timeout", "count": 1},
+    ]
     assert payload["correlation_id_coverage"] == {
         "covered_events": 2,
         "total_events": 3,
@@ -638,6 +641,57 @@ def test_summary_top_lists_are_deterministic_for_tied_counts(tmp_path):
     ]
 
 
+def test_summary_uses_shared_incident_evidence_rules_for_critical_fatal_and_message_hints(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: accepted",
+                "2025-01-01T00:00:02Z CRITICAL db: query failed cid=q-1",
+                "2025-01-01T00:00:03Z FATAL worker: crash loop 42",
+                "2025-01-01T00:00:04Z INFO web: upstream error on request 99",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["summary", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["event_count"] == 4
+    assert payload["error_count"] == 3
+    assert payload["top_error_signatures"] == [
+        {"name": "query failed cid=<id>", "count": 1},
+        {"name": "crash loop #", "count": 1},
+        {"name": "upstream error on request #", "count": 1},
+    ]
+
+
+def test_summary_error_signature_ties_follow_first_seen_order_then_normalized_name(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z ERROR api: zeta error 2",
+                "2025-01-01T00:00:02Z ERROR db: alpha error 1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["summary", str(sample), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["top_error_signatures"] == [
+        {"name": "zeta error #", "count": 1},
+        {"name": "alpha error #", "count": 1},
+    ]
+
+
 def test_summary_filters_slice_events_with_repeated_or_flags_and_and_across_fields(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text(
@@ -683,7 +737,7 @@ def test_summary_filters_slice_events_with_repeated_or_flags_and_and_across_fiel
         {"name": "api", "count": 1},
         {"name": "worker", "count": 1},
     ]
-    assert payload["top_error_signatures"] == [{"name": "timeout cid=c-2", "count": 2}]
+    assert payload["top_error_signatures"] == [{"name": "timeout cid=<id>", "count": 2}]
     assert payload["correlation_id_coverage"] == {
         "covered_events": 2,
         "total_events": 2,

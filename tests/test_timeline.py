@@ -57,6 +57,24 @@ def test_timeline_filtered_subset_preserves_stable_order_for_tied_timestamps():
     assert 0 <= worker_index < api_index
 
 
+def test_timeline_includes_critical_fatal_and_message_hint_events_in_shared_evidence_sections():
+    lines = [
+        "2025-01-01T00:00:01Z INFO api: accepted",
+        "2025-01-01T00:00:02Z CRITICAL db: query failed cid=q-1",
+        "2025-01-01T00:00:03Z FATAL worker: crash loop 42",
+        "2025-01-01T00:00:04Z INFO web: upstream error on request 99",
+    ]
+    events = [parse_line(line) for line in lines]
+    timeline = build_timeline([event for event in events if event])
+
+    assert "- query failed cid=<id> (count: 1, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:02+00:00)" in timeline
+    assert "- crash loop # (count: 1, first: 2025-01-01T00:00:03+00:00, last: 2025-01-01T00:00:03+00:00)" in timeline
+    assert "- upstream error on request # (count: 1, first: 2025-01-01T00:00:04+00:00, last: 2025-01-01T00:00:04+00:00)" in timeline
+    assert "- db (errors: 1)" in timeline
+    assert "- worker (errors: 1)" in timeline
+    assert "- web (errors: 1)" in timeline
+
+
 def test_timeline_golden_output_is_deterministic():
     lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
     expected = (GOLDEN_DIR / "timeline_output.md").read_text(encoding="utf-8")

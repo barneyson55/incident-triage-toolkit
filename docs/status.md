@@ -9,24 +9,24 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- ITK-017 completed (runbook output is now evidence-driven instead of mostly boilerplate):
-  - Added shared evidence helpers in `triage_toolkit/evidence.py` for ordered event handling, error classification, normalized signatures, component ranking, and representative correlation IDs.
-  - `triage_toolkit/runbook.py` now renders a deterministic evidence snapshot with incident window, first/last observed timestamps, evidence-event counts, top error signatures, suspected components with counts, representative correlation IDs, and 1-3 representative failures chosen as the earliest occurrence for each top signature.
-  - Empty or filter-miss runbooks now use an explicit no-evidence template instead of generic filler.
-  - `triage_toolkit/timeline.py` now reuses the shared evidence helpers so markdown evidence logic does not fork between timeline and runbook.
-  - `tests/test_runbook.py`, `tests/test_cli.py`, and `tests/fixtures/golden/runbook_output.md` were updated to lock the richer markdown contract and representative-failure selection.
-  - `README.md` documents the upgraded runbook evidence structure and how filtered slices affect the evidence sections.
+- ITK-019 completed (incident evidence semantics are now shared across `summary`, `timeline`, and `runbook`):
+  - `triage_toolkit/cli.py::_build_incident_summary()` now reuses the shared evidence helpers instead of counting only `level == "ERROR"` and grouping raw messages independently.
+  - `triage_toolkit/evidence.py` now exposes shared `top_error_signatures()` output shaping for JSON and makes signature/component tie-breaks explicit and deterministic (`count DESC`, then earliest evidence timestamp, then name/signature text).
+  - `summary.error_count` now matches markdown evidence classification for `ERROR`, `CRITICAL`, `FATAL`, and lower-level messages containing `error`.
+  - `summary.top_error_signatures`, timeline `Notable Errors`, and runbook evidence/symptom sections now all use the same normalized signature rules (lowercase, `cid=<id>`, digits -> `#`).
+  - `README.md` now documents the canonical evidence-classification and signature-ordering rules.
+  - `tests/test_cli.py`, `tests/test_timeline.py`, and `tests/test_runbook.py` now lock parity coverage for `CRITICAL`, `FATAL`, and message-hint evidence.
 - Why:
-  - The biggest remaining operator-facing gap was that the runbook read like a template instead of a strong handoff artifact. The richer evidence snapshot makes the markdown output materially more useful without changing the CLI surface.
+  - The repo was undermining operator trust by letting JSON and markdown disagree about the same incident slice. This closes that semantic gap without changing the CLI surface.
 - Risks / follow-ups:
-  - `triage summary` still uses narrower error semantics than timeline/runbook, so JSON and markdown outputs can still disagree about what counts as incident evidence.
-  - Successful parsed events still lack source provenance (source path / line number), which limits how traceable the new evidence snippets can be in multi-input incidents.
-  - Richer evidence excerpts increase safe-sharing pressure; deterministic redaction is still a follow-up item.
+  - Successful parsed events still lack source provenance (source path / line number), which limits how traceable the normalized evidence snippets can be in multi-input incidents.
+  - Dropped-line diagnostics and evidence excerpts still need deterministic redaction controls before safe-sharing is strong enough by default.
 - Verification run:
-  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "golden or evidence or example or signature"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "runbook and (golden or filter or strict)"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and (critical or fatal or error)"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "critical or fatal or error"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "critical or fatal or error"` ✅
   - `make lint` ✅
-  - `make test` ✅ (87 passed)
+  - `make test` ✅ (91 passed)
 
 ## Next
-- Start ITK-019 by unifying incident evidence semantics across `summary`, `timeline`, and `runbook` so JSON and markdown outputs stop disagreeing about the same incident.
+- Start ITK-020 by preserving source provenance for successful parsed events and rendered evidence so operators can trace normalized evidence back to the original file/stdin source and line.

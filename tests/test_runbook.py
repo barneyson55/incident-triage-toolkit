@@ -88,6 +88,24 @@ def test_runbook_empty_state_uses_explicit_no_evidence_template():
     assert "- No representative failures available." in runbook
 
 
+def test_runbook_uses_shared_incident_evidence_rules_for_critical_fatal_and_message_hints():
+    lines = [
+        "2025-01-01T00:00:01Z INFO api: accepted",
+        "2025-01-01T00:00:02Z CRITICAL db: query failed cid=q-1",
+        "2025-01-01T00:00:03Z FATAL worker: crash loop 42",
+        "2025-01-01T00:00:04Z INFO web: upstream error on request 99",
+    ]
+    events = [parse_line(line) for line in lines]
+    runbook = build_runbook([event for event in events if event], "Incident: Evidence Semantics")
+
+    assert "- Evidence events: 3 of 4 total" in runbook
+    assert "- Top error signatures: `query failed cid=<id>` (1), `crash loop #` (1), `upstream error on request #` (1)" in runbook
+    assert "- Suspected components: db (1), worker (1), web (1)" in runbook
+    assert "- `2025-01-01T00:00:02+00:00` `CRITICAL` `db` — query failed cid=q-1" in runbook
+    assert "- `2025-01-01T00:00:03+00:00` `FATAL` `worker` — crash loop 42" in runbook
+    assert "- `2025-01-01T00:00:04+00:00` `INFO` `web` — upstream error on request 99" in runbook
+
+
 def test_runbook_golden_output_is_deterministic():
     lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
     expected = (GOLDEN_DIR / "runbook_output.md").read_text(encoding="utf-8")

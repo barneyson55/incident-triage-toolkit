@@ -144,7 +144,12 @@ Timeline and runbook outputs continue to render UTC timestamps only.
 - Top-level keys: `schema_version`, `incident_window`, `event_count`, `error_count`,
   `top_components`, `top_error_signatures`, `correlation_id_coverage`, `parse_summary`.
 - `incident_window.start/end` are canonical UTC ISO-8601 timestamps across the merged event set.
-- `top_components` and `top_error_signatures` are sorted by `count DESC`, then `name ASC`.
+- `top_components` is sorted by `count DESC`, then `name ASC`.
+- `top_error_signatures` uses the same shared incident-evidence rules as timeline/runbook:
+  - evidence events include levels `ERROR`, `CRITICAL`, and `FATAL`
+  - events whose message text contains `error` also count as evidence, even if the level is lower
+  - signatures are normalized to lowercase, correlation IDs become `cid=<id>`, and digit runs become `#`
+  - signature ordering is deterministic: `count DESC`, then earliest evidence timestamp, then normalized signature text
 - Multi-input runs use the same deterministic merge contract as `parse`/`timeline`/`runbook`
   (UTC timestamp, then CLI input order, then line order within source).
 - `parse_summary` stays backward compatible for single-input runs; multi-input runs add ordered

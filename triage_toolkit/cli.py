@@ -10,6 +10,7 @@ from typing import Any, NoReturn
 import typer
 
 from . import __version__
+from .evidence import error_events, top_error_signatures
 from .parser import parse_file, parse_file_with_summary, parse_lines_with_summary
 from .runbook import build_runbook
 from .timeline import build_timeline
@@ -237,8 +238,7 @@ def _build_incident_summary(events: list[Any]) -> dict[str, Any]:
     end = events[-1].timestamp.isoformat() if events else None
 
     component_counts = Counter(event.component for event in events)
-    error_events = [event for event in events if event.level.upper() == "ERROR"]
-    error_signature_counts = Counter(event.message for event in error_events)
+    evidence_events = error_events(events)
 
     correlated = sum(1 for event in events if event.correlation_id)
     correlation_coverage = 0.0 if event_count == 0 else correlated / event_count
@@ -250,9 +250,9 @@ def _build_incident_summary(events: list[Any]) -> dict[str, Any]:
             "end": end,
         },
         "event_count": event_count,
-        "error_count": len(error_events),
+        "error_count": len(evidence_events),
         "top_components": _top_items(component_counts),
-        "top_error_signatures": _top_items(error_signature_counts),
+        "top_error_signatures": top_error_signatures(events),
         "correlation_id_coverage": {
             "covered_events": correlated,
             "total_events": event_count,

@@ -2,14 +2,14 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-03-09 17:11 UTC):
-- `make test` ✅ (87 passed)
-- `docs/status.md` ✅ updated for ITK-017 completion and the next semantic/provenance gaps.
-- `README.md` ✅ documents multi-input ingestion, deterministic merge order, output filters, stdin ingestion, dropped-line diagnostics, and the richer runbook evidence structure.
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-03-09 18:3x UTC):
+- `make test` ✅ (91 passed)
+- `docs/status.md` ✅ updated for ITK-019 completion and the next provenance/redaction gaps.
+- `README.md` ✅ documents multi-input ingestion, deterministic merge order, output filters, stdin ingestion, dropped-line diagnostics, richer runbook evidence structure, and the canonical shared evidence-classification rules.
 - `docs/critical_todo.md` ✅ no open critical items.
-- Code review gaps now matter more than the closed runbook-boilerplate issue:
-  - `triage_toolkit/cli.py::_build_incident_summary()` counts errors only when `level == "ERROR"`, while `triage_toolkit/timeline.py` and the new runbook evidence helpers treat `CRITICAL`, `FATAL`, and message-level `error` hints as incident evidence too. That means JSON and markdown outputs can still disagree about the same incident.
+- Code review gaps now matter more than the closed evidence-semantics issue:
   - `triage_toolkit/models.py` and the parse JSON contract do not preserve `source_path` / source line number for successfully parsed events, so multi-input evidence is still hard to trace back to the original log line.
+  - Timeline rows and runbook evidence snippets therefore still cannot cite the original source file/stdin label and line number.
   - Dropped-line diagnostics already expose raw rejected text. Richer evidence excerpts now exist in runbooks too, so the toolkit needs a deterministic safe-sharing path rather than relying only on upstream manual scrubbing.
 
 ## Open priorities (highest engineering impact first)
@@ -28,14 +28,13 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - `pytest -q tests/test_cli.py -k "runbook and (golden or filter or strict)"`
     - `make test`
 
-- [ ] ITK-019 (P1): Unify incident evidence semantics across `summary`, `timeline`, and `runbook`
+- [x] ITK-019 (P1): Unify incident evidence semantics across `summary`, `timeline`, and `runbook`
   - Why (impact): the current repo can disagree with itself about what counts as an error/evidence event. That weakens operator trust, especially once runbook evidence gets richer.
-  - DoD:
-    - Define one shared, reusable incident-evidence predicate / normalization path for JSON and markdown outputs.
-    - `summary.error_count`, `summary.top_error_signatures`, timeline `Notable Errors`, and runbook evidence/symptom sections all derive from the same classification rules.
-    - Add explicit coverage for `ERROR`, `CRITICAL`, `FATAL`, and message-based `error` hints where the repo intentionally wants them treated as incident evidence.
-    - Preserve deterministic ordering and tie-break behavior for signatures/components.
-    - README documents the canonical evidence/error classification rules.
+  - Done:
+    - Shared evidence helpers now drive `summary.error_count`, `summary.top_error_signatures`, timeline `Notable Errors`, and runbook evidence/symptom sections.
+    - Added explicit parity coverage for `ERROR`, `CRITICAL`, `FATAL`, and message-based `error` hints.
+    - Made signature/component tie-break ordering explicit and deterministic.
+    - README now documents the canonical evidence/error classification rules.
   - Verification:
     - `pytest -q tests/test_cli.py -k "summary and (critical or fatal or error)"`
     - `pytest -q tests/test_timeline.py -k "critical or fatal or error"`
@@ -74,6 +73,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-019 (P1): Unify incident evidence semantics across `summary`, `timeline`, and `runbook`
 - [x] ITK-017 (P1): Make runbook output evidence-driven instead of mostly boilerplate
 - [x] ITK-016 (P1): Finish deterministic incident-slicing filter parity for `timeline` and `runbook`
 - [x] ITK-018 (P1): Support stdin ingestion (`-`) across CLI commands
