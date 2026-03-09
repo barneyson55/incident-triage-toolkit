@@ -957,6 +957,8 @@ def test_runbook_filters_slice_events_with_repeated_or_flags_and_and_across_fiel
     assert "- Evidence events: 2 of 2 total" in result.stdout
     assert "- Suspected components: api (1), worker (1)" in result.stdout
     assert "- Representative correlation IDs: `c-2`" in result.stdout
+    assert f"- timeout cid=<id> (count: 2, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:03+00:00, components: api, worker, example: `{sample}:2`)" in result.stdout
+    assert f"- `2025-01-01T00:00:02+00:00` `ERROR` `api` — timeout cid=c-2 (source: `{sample}:2`)" in result.stdout
 
 
 def test_runbook_filters_do_not_bypass_strict_parse_gate_on_raw_ingestion(tmp_path):
@@ -1096,6 +1098,8 @@ def test_parse_stdout_normalizes_offset_timestamp_to_utc_and_preserves_provenanc
     assert event["timestamp"] == "2025-01-01T00:00:01+00:00"
     assert event["source_timestamp"] == "2025-01-01T02:00:01+02:00"
     assert event["source_offset"] == "+02:00"
+    assert event["source_path"] == str(sample)
+    assert event["line_number"] == 1
 
 
 def test_parse_json_provenance_keeps_timezone_source_offset(tmp_path):
@@ -1113,6 +1117,8 @@ def test_parse_json_provenance_keeps_timezone_source_offset(tmp_path):
     assert event["timestamp"] == "2025-01-01T00:00:01+00:00"
     assert event["source_timestamp"] == "2024-12-31T19:00:01-05:00"
     assert event["source_offset"] == "-05:00"
+    assert event["source_path"] == str(sample)
+    assert event["line_number"] == 1
 
 
 def test_parse_writes_output_file_and_reports_success(tmp_path):

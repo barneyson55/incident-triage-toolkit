@@ -12,12 +12,12 @@
 ## Evidence
 
 ### Top Error Signatures
-- query failed cid=<id> (count: 1, first: 2025-03-01T10:00:02+00:00, last: 2025-03-01T10:00:02+00:00, components: db)
-- request # for user # (count: 1, first: 2025-03-01T10:00:04+00:00, last: 2025-03-01T10:00:04+00:00, components: api)
+- query failed cid=<id> (count: 1, first: 2025-03-01T10:00:02+00:00, last: 2025-03-01T10:00:02+00:00, components: db, example: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:3`)
+- request # for user # (count: 1, first: 2025-03-01T10:00:04+00:00, last: 2025-03-01T10:00:04+00:00, components: api, example: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:5`)
 
 ### Example Failures
-- `2025-03-01T10:00:02+00:00` `ERROR` `db` — query failed cid=q-9
-- `2025-03-01T10:00:04+00:00` `ERROR` `api` — request 500 for user 42
+- `2025-03-01T10:00:02+00:00` `ERROR` `db` — query failed cid=q-9 (source: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:3`)
+- `2025-03-01T10:00:04+00:00` `ERROR` `api` — request 500 for user 42 (source: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:5`)
 
 ## Checks
 - Prioritize health and dependency checks for: db, api.

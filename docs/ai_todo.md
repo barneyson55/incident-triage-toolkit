@@ -2,14 +2,13 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-09 18:34 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-09 18:52 UTC):
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `make test` ✅ (91 passed)
-- `docs/status.md` ✅ updated for ITK-019 completion and the next provenance/redaction gaps.
+- `make lint` ✅
+- `make test` ✅ (94 passed)
+- `docs/status.md` ✅ updated for ITK-020 completion and the next redaction/source-concentration gaps.
 - `docs/critical_todo.md` ✅ no open critical items.
-- Highest-leverage remaining gaps after ITK-019:
-  - successful parsed events still do **not** preserve source label/path + original line number
-  - timeline/runbook evidence cannot cite the original source line yet
+- Highest-leverage remaining gaps after ITK-020:
   - diagnostics/evidence still lack a deterministic safe-sharing/redaction mode
   - multi-input support exists, but the outputs still do not show **which source** dominates the evidence slice
   - determinism for equal-timestamp events is still partly implicit outside the CLI merge path
@@ -17,7 +16,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo v
 
 ## Open priorities (highest engineering impact first)
 
-- [ ] ITK-020 (P1): Preserve source provenance for successful parsed events and rendered evidence
+- [x] ITK-020 (P1): Preserve source provenance for successful parsed events and rendered evidence
   - Why (impact): multi-input support is already shipped, but successful events still lose the exact source file / stdin label and line number. That weakens operator handoff, auditability, and root-cause traceability.
   - DoD:
     - Extend the parsed event contract with deterministic source provenance for successful events (`source_path`/label and original `line_number`) with an explicit parse schema-version bump.
