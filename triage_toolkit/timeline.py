@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from .evidence import build_signature_evidence, component_counts, is_error, order_events
 from .models import LogEvent
@@ -6,6 +6,12 @@ from .models import LogEvent
 
 def _escape_markdown(text: str) -> str:
     return text.replace("|", "\\|")
+
+
+def _format_event_source(event: LogEvent) -> str:
+    if event.source_path is None or event.line_number is None:
+        return "n/a"
+    return f"{event.source_path}:{event.line_number}"
 
 
 def build_timeline(events: list[LogEvent]) -> str:
@@ -22,14 +28,15 @@ def build_timeline(events: list[LogEvent]) -> str:
         "",
         "## Events",
         "",
-        "| Time (UTC) | Level | Component | Message |",
-        "| --- | --- | --- | --- |",
+        "| Time (UTC) | Source | Level | Component | Message |",
+        "| --- | --- | --- | --- | --- |",
     ]
 
     for event in ordered:
         lines.append(
-            "| {} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} |".format(
                 event.timestamp.isoformat(),
+                _escape_markdown(_format_event_source(event)),
                 event.level,
                 event.component,
                 _escape_markdown(event.message.replace("\n", " ")),

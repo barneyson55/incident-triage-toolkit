@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
@@ -207,7 +208,7 @@ def parse_lines_with_summary(
         total_lines += 1
         event, drop_reason = parse_line_with_reason(line)
         if event:
-            events.append(event)
+            events.append(replace(event, source_path=source_path, line_number=total_lines))
         else:
             reason = drop_reason or _DROP_UNKNOWN
             dropped_reasons[reason] += 1
