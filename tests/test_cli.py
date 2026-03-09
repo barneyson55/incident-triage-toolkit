@@ -136,6 +136,88 @@ def test_parse_multiple_inputs_per_source_summary_keeps_source_order_and_reason_
     ]
 
 
+
+def test_parse_stdout_with_dropped_examples_respects_diagnostics_limit(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "bad-a",
+                '{"timestamp":"bad-ts","message":"broken"}',
+                "2025-01-01T00:00:01Z INFO api: ok",
+                '{"message":"missing timestamp"}',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["parse", str(sample), "--out", "-", "--diagnostics-limit", "2"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == cli_module.PARSE_SCHEMA_VERSION
+    assert payload["parse_summary"]["dropped_line_diagnostics"] == [
+        {
+            "source_path": str(sample),
+            "line_number": 1,
+            "reason": "unrecognized_text",
+            "raw_line": "bad-a",
+        },
+        {
+            "source_path": str(sample),
+            "line_number": 2,
+            "reason": "invalid_timestamp",
+            "raw_line": '{"timestamp":"bad-ts","message":"broken"}',
+        },
+    ]
+
+
+
+def test_parse_multiple_inputs_dropped_examples_follow_cli_input_order(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text("bad-a-1\nbad-a-2\n", encoding="utf-8")
+    source_b.write_text("bad-b-1\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "parse",
+            str(source_a),
+            str(source_b),
+            "--out",
+            "-",
+            "--diagnostics-limit",
+            "2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["parse_summary"]["dropped_line_diagnostics"] == [
+        {
+            "source_path": str(source_a),
+            "line_number": 1,
+            "reason": "unrecognized_text",
+            "raw_line": "bad-a-1",
+        },
+        {
+            "source_path": str(source_a),
+            "line_number": 2,
+            "reason": "unrecognized_text",
+            "raw_line": "bad-a-2",
+        },
+    ]
+    assert all(
+        "dropped_line_diagnostics" not in source_summary
+        for source_summary in payload["parse_summary"]["per_source"]
+    )
+
+
 def test_parse_missing_file_error():
     result = runner.invoke(app, ["parse", "missing-file.log", "--out", "-"])
 
@@ -456,6 +538,125 @@ def test_summary_top_lists_are_deterministic_for_tied_counts(tmp_path):
     assert payload["top_error_signatures"] == [
         {"name": "timeout", "count": 2},
     ]
+
+
+def test_summary_filters_slice_events_with_repeated_or_flags_and_and_across_fields(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: accepted cid=c-1",
+                "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2",
+                "2025-01-01T00:00:03Z ERROR worker: timeout cid=c-2",
+                "2025-01-01T00:00:04Z ERROR web: timeout cid=c-3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "summary",
+            str(sample),
+            "--out",
+            "-",
+            "--component",
+            "api",
+            "--component",
+            "worker",
+            "--level",
+            "error",
+            "--correlation-id",
+            "c-2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["incident_window"] == {
+        "start": "2025-01-01T00:00:02+00:00",
+        "end": "2025-01-01T00:00:03+00:00",
+    }
+    assert payload["event_count"] == 2
+    assert payload["error_count"] == 2
+    assert payload["top_components"] == [
+        {"name": "api", "count": 1},
+        {"name": "worker", "count": 1},
+    ]
+    assert payload["top_error_signatures"] == [{"name": "timeout cid=c-2", "count": 2}]
+    assert payload["correlation_id_coverage"] == {
+        "covered_events": 2,
+        "total_events": 2,
+        "coverage_ratio": 1.0,
+    }
+    assert payload["parse_summary"] == {
+        "total_lines": 4,
+        "parsed_lines": 4,
+        "dropped_lines": 0,
+        "drop_ratio": 0.0,
+        "dropped_reasons": {},
+    }
+
+
+def test_summary_filters_return_empty_slice_without_mutating_raw_parse_summary(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "2025-01-01T00:00:01Z INFO api: accepted cid=c-1\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["summary", str(sample), "--out", "-", "--component", "worker"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["incident_window"] == {"start": None, "end": None}
+    assert payload["event_count"] == 0
+    assert payload["error_count"] == 0
+    assert payload["top_components"] == []
+    assert payload["top_error_signatures"] == []
+    assert payload["correlation_id_coverage"] == {
+        "covered_events": 0,
+        "total_events": 0,
+        "coverage_ratio": 0.0,
+    }
+    assert payload["parse_summary"] == {
+        "total_lines": 1,
+        "parsed_lines": 1,
+        "dropped_lines": 0,
+        "drop_ratio": 0.0,
+        "dropped_reasons": {},
+    }
+
+
+def test_summary_filters_do_not_bypass_strict_parse_gate_on_raw_ingestion(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "2025-01-01T00:00:01Z INFO api: accepted cid=c-1\nbad-line\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "summary",
+            str(sample),
+            "--out",
+            "-",
+            "--component",
+            "api",
+            "--strict",
+            "--max-drop-ratio",
+            "0.49",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
 
 
 def test_timeline_strict_fails_when_no_parsed_lines(tmp_path):

@@ -9,21 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- Completed ITK-010 (preserve timezone provenance while keeping UTC canonical output):
-  - `triage_toolkit/models.py`: added additive event fields `source_timestamp` and `source_offset` to `LogEvent.to_dict()`.
-  - `triage_toolkit/parser.py`: captured deterministic timestamp provenance for both JSON and text ingestion paths while keeping `timestamp` UTC-normalized.
-  - `tests/test_parser.py` and `tests/test_cli.py`: added regression assertions for provenance fields across offset, `Z`, and naive timestamp inputs.
-  - `README.md`: documented parse-event schema delta and backward-compatibility (additive keys, UTC-first unchanged).
+- Partial ITK-016 milestone (deterministic incident-slicing filters, summary-first):
+  - `triage_toolkit/cli.py`: added repeated `triage summary` filters for `--component`, `--level`, and `--correlation-id`.
+  - Filter behavior is deterministic: repeated same-field flags widen with OR, different fields combine with AND, and filtered event ordering stays inherited from the existing deterministic merge order.
+  - Strict parse gates still evaluate raw ingestion quality before filtering, so filtered summaries cannot mask parse failures.
+  - `tests/test_cli.py`: added regression coverage for repeated filters, empty filtered slices, and strict/raw-ingestion behavior.
+  - `README.md`: documented the current filter semantics and explicitly scoped this milestone to `summary` while `timeline`/`runbook` remain pending.
 - Why:
-  - Downstream automation can now correlate original source timestamp/offset without giving up deterministic UTC ordering.
+  - Operators can now slice noisy incident summaries by component, severity, and correlation ID without ad-hoc shell pipelines.
 - Risks / follow-ups:
-  - `source_offset` is `null` for naive timestamps (no explicit offset in source); consumers should not treat `null` as UTC certainty.
+  - `timeline` and `runbook` still need the same filter surface to fully complete ITK-016.
+  - Current component and correlation-ID matching is exact-string based; if future log normalization changes, the filter contract should be revisited explicitly.
 - Verification run:
-  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "provenance or source_offset or source_timestamp"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse and provenance and timezone"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "utc"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "utc"` ✅
-  - `make lint && make test` ✅ (50 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and filter"` ✅
+  - `make test` ✅
 
 ## Next
-- ITK-011 (P1): Version and lock the parse JSON contract before further output expansion.
+- Continue ITK-016 by extending the same deterministic filter surface to `timeline` and `runbook`.

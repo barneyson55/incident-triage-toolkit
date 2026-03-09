@@ -61,6 +61,40 @@ def test_parse_stats_summary_and_dropped_reasons(tmp_path):
     }
 
 
+def test_parse_stats_summary_with_dropped_diagnostics_is_deterministic_and_bounded(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                '{"timestamp":"2025-01-01T00:00:01Z","component":"api","message":"ok"}',
+                "",
+                '{"timestamp":"bad-ts","message":"broken"}',
+                "not a log line",
+                '{"message":"missing timestamp"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    events, summary = parse_file_with_summary(sample, diagnostics_limit=2)
+
+    assert len(events) == 1
+    assert summary["dropped_line_diagnostics"] == [
+        {
+            "source_path": str(sample),
+            "line_number": 2,
+            "reason": "blank_line",
+            "raw_line": "",
+        },
+        {
+            "source_path": str(sample),
+            "line_number": 3,
+            "reason": "invalid_timestamp",
+            "raw_line": '{"timestamp":"bad-ts","message":"broken"}',
+        },
+    ]
+
+
 def test_parse_dropped_reason_for_invalid_json():
     event, reason = parse_line_with_reason('{"timestamp":')
     assert event is None

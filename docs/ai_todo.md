@@ -12,7 +12,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
 
 ## Open priorities (highest engineering impact first)
 
-- [ ] ITK-015 (P1): Add deterministic dropped-line diagnostics for parse quality investigation
+- [x] ITK-015 (P1): Add deterministic dropped-line diagnostics for parse quality investigation
   - Why (impact): strict parse gates now prevent silent data loss, but they still do a poor job of explaining failures. When drop ratio spikes, operators cannot yet see which exact lines were rejected, which slows parser debugging and weakens trust in the toolkit.
   - DoD:
     - Add a bounded diagnostics surface for dropped lines (opt-in output field or dedicated command/option).

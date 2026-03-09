@@ -159,6 +159,7 @@ def _build_parse_summary(
     total_lines: int,
     parsed_lines: int,
     dropped_reasons: Counter[str],
+    dropped_line_diagnostics: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     dropped_lines = total_lines - parsed_lines
     drop_ratio = dropped_lines / total_lines if total_lines else 0.0
@@ -171,12 +172,35 @@ def _build_parse_summary(
             reason: dropped_reasons[reason] for reason in sorted(dropped_reasons)
         },
     }
+    if dropped_line_diagnostics is not None:
+        summary["dropped_line_diagnostics"] = dropped_line_diagnostics
     return summary
 
 
-def parse_lines_with_summary(lines: Iterable[str]) -> tuple[list[LogEvent], dict[str, Any]]:
+def _build_dropped_line_diagnostic(
+    *,
+    source_path: str,
+    line_number: int,
+    reason: str,
+    raw_line: str,
+) -> dict[str, Any]:
+    return {
+        "source_path": source_path,
+        "line_number": line_number,
+        "reason": reason,
+        "raw_line": raw_line,
+    }
+
+
+def parse_lines_with_summary(
+    lines: Iterable[str],
+    *,
+    source_path: str = "<memory>",
+    diagnostics_limit: int = 0,
+) -> tuple[list[LogEvent], dict[str, Any]]:
     events: list[LogEvent] = []
     dropped_reasons: Counter[str] = Counter()
+    dropped_line_diagnostics: list[dict[str, Any]] = []
     total_lines = 0
 
     for line in lines:
@@ -185,12 +209,23 @@ def parse_lines_with_summary(lines: Iterable[str]) -> tuple[list[LogEvent], dict
         if event:
             events.append(event)
         else:
-            dropped_reasons[drop_reason or _DROP_UNKNOWN] += 1
+            reason = drop_reason or _DROP_UNKNOWN
+            dropped_reasons[reason] += 1
+            if diagnostics_limit > len(dropped_line_diagnostics):
+                dropped_line_diagnostics.append(
+                    _build_dropped_line_diagnostic(
+                        source_path=source_path,
+                        line_number=total_lines,
+                        reason=reason,
+                        raw_line=line,
+                    )
+                )
 
     summary = _build_parse_summary(
         total_lines=total_lines,
         parsed_lines=len(events),
         dropped_reasons=dropped_reasons,
+        dropped_line_diagnostics=dropped_line_diagnostics if diagnostics_limit > 0 else None,
     )
     return events, summary
 
@@ -201,9 +236,17 @@ def _iter_file_lines(path: Path) -> Iterator[str]:
             yield line.rstrip("\n")
 
 
-def parse_file_with_summary(path: str | Path) -> tuple[list[LogEvent], dict[str, Any]]:
+def parse_file_with_summary(
+    path: str | Path,
+    *,
+    diagnostics_limit: int = 0,
+) -> tuple[list[LogEvent], dict[str, Any]]:
     path = Path(path)
-    return parse_lines_with_summary(_iter_file_lines(path))
+    return parse_lines_with_summary(
+        _iter_file_lines(path),
+        source_path=str(path),
+        diagnostics_limit=diagnostics_limit,
+    )
 
 
 def parse_file(path: str | Path) -> list[LogEvent]:

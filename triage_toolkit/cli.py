@@ -14,7 +14,7 @@ from .runbook import build_runbook
 from .timeline import build_timeline
 
 _PACKAGE_NAME = "incident-triage-toolkit"
-PARSE_SCHEMA_VERSION = "1.0.0"
+PARSE_SCHEMA_VERSION = "1.1.0"
 SUMMARY_SCHEMA_VERSION = "1.0.0"
 
 app = typer.Typer(name="triage", help="Incident triage toolkit.")
@@ -66,8 +66,14 @@ def _read_events(path: Path):
         _fail(f"Could not read input file '{path}': {exc}")
 
 
-def _read_events_with_summary(path: Path) -> tuple[list[Any], dict[str, Any]]:
+def _read_events_with_summary(
+    path: Path,
+    *,
+    diagnostics_limit: int = 0,
+) -> tuple[list[Any], dict[str, Any]]:
     try:
+        if diagnostics_limit > 0:
+            return parse_file_with_summary(path, diagnostics_limit=diagnostics_limit)
         return parse_file_with_summary(path)
     except FileNotFoundError:
         _fail(f"Input file not found: {path}")
@@ -101,22 +107,36 @@ def _merge_parse_summaries(summaries: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _read_events_for_parse(paths: list[Path]) -> tuple[list[Any], dict[str, Any]]:
+def _read_events_for_parse(
+    paths: list[Path],
+    *,
+    diagnostics_limit: int = 0,
+) -> tuple[list[Any], dict[str, Any]]:
     if not paths:
         _fail("At least one input file path is required.")
 
     merged_events: list[tuple[Any, int, int]] = []
     per_source: list[dict[str, Any]] = []
+    dropped_line_diagnostics: list[dict[str, Any]] = []
+    remaining_diagnostics = diagnostics_limit
 
     for source_index, path in enumerate(paths):
-        events, summary = _read_events_with_summary(path)
+        events, summary = _read_events_with_summary(path, diagnostics_limit=remaining_diagnostics)
         merged_events.extend((event, source_index, event_index) for event_index, event in enumerate(events))
-        per_source.append({"path": str(path), **summary})
+
+        source_summary = dict(summary)
+        source_diagnostics = source_summary.pop("dropped_line_diagnostics", [])
+        dropped_line_diagnostics.extend(source_diagnostics)
+        remaining_diagnostics = max(0, diagnostics_limit - len(dropped_line_diagnostics))
+
+        per_source.append({"path": str(path), **source_summary})
 
     merged_events.sort(key=lambda item: (item[0].timestamp, item[1], item[2]))
     all_events = [item[0] for item in merged_events]
 
     aggregate = _merge_parse_summaries(per_source)
+    if diagnostics_limit > 0:
+        aggregate["dropped_line_diagnostics"] = dropped_line_diagnostics
     if len(paths) > 1:
         aggregate["per_source"] = per_source
     return all_events, aggregate
@@ -160,6 +180,29 @@ def _strict_parse_error(summary: dict[str, Any], max_drop_ratio: float) -> str |
 def _top_items(counter: Counter[str], limit: int = 3) -> list[dict[str, Any]]:
     ordered = sorted(counter.items(), key=lambda item: (-item[1], item[0]))
     return [{"name": name, "count": count} for name, count in ordered[:limit]]
+
+
+def _apply_event_filters(
+    events: list[Any],
+    *,
+    components: list[str] | None = None,
+    levels: list[str] | None = None,
+    correlation_ids: list[str] | None = None,
+) -> list[Any]:
+    component_filter = set(components or [])
+    level_filter = {level.upper() for level in (levels or [])}
+    correlation_id_filter = set(correlation_ids or [])
+
+    filtered: list[Any] = []
+    for event in events:
+        if component_filter and event.component not in component_filter:
+            continue
+        if level_filter and event.level.upper() not in level_filter:
+            continue
+        if correlation_id_filter and event.correlation_id not in correlation_id_filter:
+            continue
+        filtered.append(event)
+    return filtered
 
 
 def _build_incident_summary(events: list[Any]) -> dict[str, Any]:
@@ -208,9 +251,18 @@ def parse(
         max=1.0,
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
+    diagnostics_limit: int = typer.Option(
+        0,
+        "--diagnostics-limit",
+        min=0,
+        help=(
+            "Include up to N dropped-line diagnostics in parse_summary, in deterministic input order. "
+            "0 disables diagnostics."
+        ),
+    ),
 ) -> None:
     """Parse one or more log files and write normalized JSON output."""
-    events, summary = _read_events_for_parse(paths)
+    events, summary = _read_events_for_parse(paths, diagnostics_limit=diagnostics_limit)
     strict_error = _strict_parse_error(summary, max_drop_ratio) if strict else None
     if strict_error:
         _fail(strict_error)
@@ -241,6 +293,21 @@ def summary(
         max=1.0,
         help="Maximum allowed dropped/total line ratio in strict mode (0.0-1.0).",
     ),
+    component: list[str] | None = typer.Option(
+        None,
+        "--component",
+        help="Include only events whose component exactly matches this value. Repeat to widen the slice.",
+    ),
+    level: list[str] | None = typer.Option(
+        None,
+        "--level",
+        help="Include only events whose level matches this value (case-insensitive). Repeat to widen the slice.",
+    ),
+    correlation_id: list[str] | None = typer.Option(
+        None,
+        "--correlation-id",
+        help="Include only events whose correlation ID exactly matches this value. Repeat to widen the slice.",
+    ),
 ) -> None:
     """Generate a machine-readable incident summary JSON output from one or more log files."""
     events, parse_summary = _read_events_for_parse(paths)
@@ -248,7 +315,13 @@ def summary(
     if strict_error:
         _fail(strict_error)
 
-    payload = _build_incident_summary(events)
+    filtered_events = _apply_event_filters(
+        events,
+        components=component,
+        levels=level,
+        correlation_ids=correlation_id,
+    )
+    payload = _build_incident_summary(filtered_events)
     payload["parse_summary"] = parse_summary
     _write_output(out, json.dumps(payload, indent=2))
     if out != "-":
