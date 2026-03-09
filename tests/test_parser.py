@@ -104,6 +104,8 @@ def test_parse_lines_with_summary_accepts_stable_stdin_source_label():
     )
 
     assert len(events) == 1
+    assert events[0].source_path == "-"
+    assert events[0].line_number == 2
     assert summary["dropped_line_diagnostics"] == [
         {
             "source_path": "-",
@@ -111,6 +113,21 @@ def test_parse_lines_with_summary_accepts_stable_stdin_source_label():
             "reason": "unrecognized_text",
             "raw_line": "bad-line",
         }
+    ]
+
+
+def test_parse_file_with_summary_preserves_source_path_and_line_number_for_successful_events(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "bad-line\n2025-01-01T00:00:01Z INFO api: ok\n2025-01-01T00:00:02Z ERROR db: failed\n",
+        encoding="utf-8",
+    )
+
+    events, _ = parse_file_with_summary(sample)
+
+    assert [(event.source_path, event.line_number) for event in events] == [
+        (str(sample), 2),
+        (str(sample), 3),
     ]
 
 
@@ -208,6 +225,8 @@ def test_parse_event_contract_keys_are_stable_for_current_schema_version():
         "timestamp",
         "source_timestamp",
         "source_offset",
+        "source_path",
+        "line_number",
         "level",
         "component",
         "message",

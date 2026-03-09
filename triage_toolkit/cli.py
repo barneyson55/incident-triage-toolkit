@@ -16,7 +16,7 @@ from .runbook import build_runbook
 from .timeline import build_timeline
 
 _PACKAGE_NAME = "incident-triage-toolkit"
-PARSE_SCHEMA_VERSION = "1.1.0"
+PARSE_SCHEMA_VERSION = "1.2.0"
 SUMMARY_SCHEMA_VERSION = "1.0.0"
 
 app = typer.Typer(name="triage", help="Incident triage toolkit.")

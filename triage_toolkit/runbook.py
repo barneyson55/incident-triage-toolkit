@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from .evidence import build_signature_evidence, component_counts, error_events, order_events, representative_correlation_ids
 from .models import LogEvent
@@ -26,6 +26,12 @@ def _incident_window(ordered: list[LogEvent]) -> str:
     if not ordered:
         return "`n/a`"
     return f"`{ordered[0].timestamp.isoformat()}` → `{ordered[-1].timestamp.isoformat()}`"
+
+
+def _format_event_source(event: LogEvent) -> str:
+    if event.source_path is None or event.line_number is None:
+        return "n/a"
+    return f"{event.source_path}:{event.line_number}"
 
 
 def build_runbook(events: list[LogEvent], title: str) -> str:
@@ -63,12 +69,13 @@ def build_runbook(events: list[LogEvent], title: str) -> str:
         for item in signatures:
             components = ", ".join(item.components) if item.components else "unknown"
             lines.append(
-                "- {} (count: {}, first: {}, last: {}, components: {})".format(
+                "- {} (count: {}, first: {}, last: {}, components: {}, example: `{}`)".format(
                     item.signature,
                     item.count,
                     item.first_seen.isoformat(),
                     item.last_seen.isoformat(),
                     components,
+                    _format_event_source(item.representative),
                 )
             )
 
@@ -79,11 +86,12 @@ def build_runbook(events: list[LogEvent], title: str) -> str:
         for item in signatures:
             event = item.representative
             lines.append(
-                "- `{}` `{}` `{}` — {}".format(
+                "- `{}` `{}` `{}` — {} (source: `{}`)".format(
                     event.timestamp.isoformat(),
                     event.level,
                     event.component,
                     event.message.replace("\n", " "),
+                    _format_event_source(event),
                 )
             )
 

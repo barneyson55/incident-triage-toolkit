@@ -97,13 +97,15 @@ if needed before sharing the JSON output.
 
 ## Parse JSON output contract (current)
 - Top-level payload keys are locked to: `schema_version`, `events`, `parse_summary`.
-- Current parse payload version is `schema_version: "1.1.0"`.
+- Current parse payload version is `schema_version: "1.2.0"`.
 - `events[*].timestamp` stays canonical UTC (`+00:00`) for deterministic ordering.
 - `events[*].source_timestamp` preserves the original timestamp token from input.
 - `events[*].source_offset` preserves the original explicit offset (`Z`, `+HH:MM`, `-HH:MM`) or
   `null` when input had no explicit offset.
-- Event keys for schema `1.1.0` are locked to:
-  `timestamp`, `source_timestamp`, `source_offset`, `level`, `component`, `message`, `correlation_id`.
+- `events[*].source_path` preserves the original source label for successful events (file path or stable stdin label `-`).
+- `events[*].line_number` preserves the original 1-based line number within that source.
+- Event keys for schema `1.2.0` are locked to:
+  `timestamp`, `source_timestamp`, `source_offset`, `source_path`, `line_number`, `level`, `component`, `message`, `correlation_id`.
 - `parse_summary.dropped_line_diagnostics` is optional and only present when `--diagnostics-limit > 0`.
   It contains the first `N` dropped lines in deterministic input order and line order.
 
@@ -115,12 +117,14 @@ Compatibility rules:
 Example parse payload:
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.2.0",
   "events": [
     {
       "timestamp": "2025-01-01T00:00:01+00:00",
       "source_timestamp": "2024-12-31T19:00:01-05:00",
       "source_offset": "-05:00",
+      "source_path": "samples/app.log",
+      "line_number": 1,
       "level": "INFO",
       "component": "api",
       "message": "hello",
@@ -137,7 +141,7 @@ Example parse payload:
 }
 ```
 
-Timeline and runbook outputs continue to render UTC timestamps only.
+Timeline and runbook outputs continue to render UTC timestamps only, but now cite source provenance as `source_path:line_number` in event/evidence surfaces.
 
 ## Summary JSON output contract (current)
 - `triage summary` emits deterministic JSON with `schema_version: "1.0.0"`.
