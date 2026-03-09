@@ -1,6 +1,6 @@
-﻿from pathlib import Path
+from pathlib import Path
 
-from triage_toolkit.parser import parse_line
+from triage_toolkit.parser import parse_file_with_summary, parse_line
 from triage_toolkit.timeline import build_timeline
 
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
@@ -52,9 +52,23 @@ def test_timeline_filtered_subset_preserves_stable_order_for_tied_timestamps():
 
     timeline = build_timeline(filtered)
 
-    worker_index = timeline.find("| 2025-01-01T00:00:02+00:00 | ERROR | worker | timeout cid=c-2 |")
-    api_index = timeline.find("| 2025-01-01T00:00:02+00:00 | ERROR | api | timeout cid=c-2 |")
+    worker_index = timeline.find("| 2025-01-01T00:00:02+00:00 | n/a | ERROR | worker | timeout cid=c-2 |")
+    api_index = timeline.find("| 2025-01-01T00:00:02+00:00 | n/a | ERROR | api | timeout cid=c-2 |")
     assert 0 <= worker_index < api_index
+
+
+def test_timeline_surfaces_source_provenance_in_event_rows(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "2025-01-01T00:00:01Z INFO api: accepted\n2025-01-01T00:00:02Z ERROR db: failed\n",
+        encoding="utf-8",
+    )
+
+    events, _ = parse_file_with_summary(sample)
+    timeline = build_timeline(events)
+
+    assert f"| 2025-01-01T00:00:01+00:00 | {sample}:1 | INFO | api | accepted |" in timeline
+    assert f"| 2025-01-01T00:00:02+00:00 | {sample}:2 | ERROR | db | failed |" in timeline
 
 
 def test_timeline_includes_critical_fatal_and_message_hint_events_in_shared_evidence_sections():
@@ -76,10 +90,10 @@ def test_timeline_includes_critical_fatal_and_message_hint_events_in_shared_evid
 
 
 def test_timeline_golden_output_is_deterministic():
-    lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
+    sample = GOLDEN_DIR / "mixed_input.log"
     expected = (GOLDEN_DIR / "timeline_output.md").read_text(encoding="utf-8")
 
-    events = [parse_line(line) for line in lines]
-    actual = build_timeline([event for event in events if event])
+    events, _ = parse_file_with_summary(sample)
+    actual = build_timeline(events)
 
     assert actual == expected

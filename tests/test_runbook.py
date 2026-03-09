@@ -1,6 +1,6 @@
-﻿from pathlib import Path
+from pathlib import Path
 
-from triage_toolkit.parser import parse_line
+from triage_toolkit.parser import parse_file_with_summary, parse_line
 from triage_toolkit.runbook import build_runbook
 
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
@@ -68,11 +68,25 @@ def test_runbook_evidence_sections_are_deterministic_and_use_earliest_example_pe
     runbook = build_runbook([event for event in events if event], "Incident: Evidence")
 
     assert "- Top error signatures: `query failed cid=<id>` (2), `timeout cid=<id>` (2)" in runbook
-    assert "- query failed cid=<id> (count: 2, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:04+00:00, components: db)" in runbook
-    assert "- timeout cid=<id> (count: 2, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:03+00:00, components: worker, api)" in runbook
-    assert "- `2025-01-01T00:00:01+00:00` `ERROR` `db` — query failed cid=q-9" in runbook
-    assert "- `2025-01-01T00:00:02+00:00` `ERROR` `worker` — timeout cid=c-2" in runbook
+    assert "- query failed cid=<id> (count: 2, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:04+00:00, components: db, example: `n/a`)" in runbook
+    assert "- timeout cid=<id> (count: 2, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:03+00:00, components: worker, api, example: `n/a`)" in runbook
+    assert "- `2025-01-01T00:00:01+00:00` `ERROR` `db` — query failed cid=q-9 (source: `n/a`)" in runbook
+    assert "- `2025-01-01T00:00:02+00:00` `ERROR` `worker` — timeout cid=c-2 (source: `n/a`)" in runbook
     assert "query failed cid=q-10" not in runbook
+
+
+def test_runbook_surfaces_source_provenance_in_evidence_and_examples(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "2025-01-01T00:00:01Z ERROR api: failed request cid=c-1\n2025-01-01T00:00:02Z INFO api: recovered cid=c-1\n",
+        encoding="utf-8",
+    )
+
+    events, _ = parse_file_with_summary(sample)
+    runbook = build_runbook(events, "Incident: Provenance")
+
+    assert f"- failed request cid=<id> (count: 1, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00, components: api, example: `{sample}:1`)" in runbook
+    assert f"- `2025-01-01T00:00:01+00:00` `ERROR` `api` — failed request cid=c-1 (source: `{sample}:1`)" in runbook
 
 
 def test_runbook_empty_state_uses_explicit_no_evidence_template():
@@ -101,16 +115,16 @@ def test_runbook_uses_shared_incident_evidence_rules_for_critical_fatal_and_mess
     assert "- Evidence events: 3 of 4 total" in runbook
     assert "- Top error signatures: `query failed cid=<id>` (1), `crash loop #` (1), `upstream error on request #` (1)" in runbook
     assert "- Suspected components: db (1), worker (1), web (1)" in runbook
-    assert "- `2025-01-01T00:00:02+00:00` `CRITICAL` `db` — query failed cid=q-1" in runbook
-    assert "- `2025-01-01T00:00:03+00:00` `FATAL` `worker` — crash loop 42" in runbook
-    assert "- `2025-01-01T00:00:04+00:00` `INFO` `web` — upstream error on request 99" in runbook
+    assert "- `2025-01-01T00:00:02+00:00` `CRITICAL` `db` — query failed cid=q-1 (source: `n/a`)" in runbook
+    assert "- `2025-01-01T00:00:03+00:00` `FATAL` `worker` — crash loop 42 (source: `n/a`)" in runbook
+    assert "- `2025-01-01T00:00:04+00:00` `INFO` `web` — upstream error on request 99 (source: `n/a`)" in runbook
 
 
 def test_runbook_golden_output_is_deterministic():
-    lines = (GOLDEN_DIR / "mixed_input.log").read_text(encoding="utf-8").splitlines()
+    sample = GOLDEN_DIR / "mixed_input.log"
     expected = (GOLDEN_DIR / "runbook_output.md").read_text(encoding="utf-8")
 
-    events = [parse_line(line) for line in lines]
-    actual = build_runbook([event for event in events if event], "Incident: Golden")
+    events, _ = parse_file_with_summary(sample)
+    actual = build_runbook(events, "Incident: Golden")
 
     assert actual == expected

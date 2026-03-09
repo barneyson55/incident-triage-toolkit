@@ -30,6 +30,8 @@ def test_parse_stdout(tmp_path):
     payload = json.loads(result.stdout)
     assert payload["schema_version"] == cli_module.PARSE_SCHEMA_VERSION
     assert payload["events"][0]["component"] == "api"
+    assert payload["events"][0]["source_path"] == str(sample)
+    assert payload["events"][0]["line_number"] == 1
     assert payload["parse_summary"] == {
         "total_lines": 1,
         "parsed_lines": 1,
@@ -72,6 +74,10 @@ def test_parse_multiple_inputs_merges_in_deterministic_timestamp_order(tmp_path)
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert [event["component"] for event in payload["events"]] == ["web", "api"]
+    assert [(event["source_path"], event["line_number"]) for event in payload["events"]] == [
+        (str(source_b), 1),
+        (str(source_a), 1),
+    ]
     assert payload["parse_summary"]["parsed_lines"] == 2
     assert [item["path"] for item in payload["parse_summary"]["per_source"]] == [
         str(source_a),
@@ -228,6 +234,8 @@ def test_parse_stdin_only_uses_stable_source_label_for_diagnostics():
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["events"][0]["component"] == "api"
+    assert payload["events"][0]["source_path"] == "-"
+    assert payload["events"][0]["line_number"] == 2
     assert payload["parse_summary"]["dropped_line_diagnostics"] == [
         {
             "source_path": "-",
@@ -253,6 +261,10 @@ def test_parse_multiple_inputs_with_stdin_preserve_cli_input_order_for_tied_time
     assert [(event["component"], event["message"]) for event in payload["events"]] == [
         ("api", "from-file"),
         ("web", "from-stdin"),
+    ]
+    assert [(event["source_path"], event["line_number"]) for event in payload["events"]] == [
+        (str(source_file), 1),
+        ("-", 1),
     ]
     assert [item["path"] for item in payload["parse_summary"]["per_source"]] == [
         str(source_file),
@@ -300,7 +312,7 @@ def test_timeline_accepts_stdin_only():
     )
 
     assert result.exit_code == 0
-    assert "| 2025-01-01T00:00:01+00:00 | INFO | api | ok cid=c-1 |" in result.stdout
+    assert "| 2025-01-01T00:00:01+00:00 | -:1 | INFO | api | ok cid=c-1 |" in result.stdout
 
 
 def test_runbook_accepts_stdin_only():
@@ -314,6 +326,8 @@ def test_runbook_accepts_stdin_only():
     assert result.stdout.startswith("# Incident: STDIN\n")
     assert "- Evidence events: 1 of 1 total" in result.stdout
     assert "- Top error signatures: `failed cid=<id>` (1)" in result.stdout
+    assert "- failed cid=<id> (count: 1, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00, components: api, example: `-:1`)" in result.stdout
+    assert "- `2025-01-01T00:00:01+00:00` `ERROR` `api` — failed cid=c-1 (source: `-:1`)" in result.stdout
 
 
 def test_parse_missing_file_error():
@@ -871,8 +885,8 @@ def test_timeline_filters_slice_events_with_repeated_or_flags_and_preserve_order
     assert result.exit_code == 0
     assert "accepted cid=c-1" not in result.stdout
     assert "web" not in result.stdout
-    worker_index = result.stdout.find("| 2025-01-01T00:00:02+00:00 | ERROR | worker | timeout cid=c-2 |")
-    api_index = result.stdout.find("| 2025-01-01T00:00:02+00:00 | ERROR | api | timeout cid=c-2 |")
+    worker_index = result.stdout.find(f"| 2025-01-01T00:00:02+00:00 | {sample}:2 | ERROR | worker | timeout cid=c-2 |")
+    api_index = result.stdout.find(f"| 2025-01-01T00:00:02+00:00 | {sample}:3 | ERROR | api | timeout cid=c-2 |")
     assert 0 <= worker_index < api_index
 
 
