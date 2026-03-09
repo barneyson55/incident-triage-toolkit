@@ -2,53 +2,29 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current repo verification (2026-03-09 18:3x UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-09 18:34 UTC):
+- `git status --short --branch` ✅ clean `main...origin/main`
 - `make test` ✅ (91 passed)
 - `docs/status.md` ✅ updated for ITK-019 completion and the next provenance/redaction gaps.
-- `README.md` ✅ documents multi-input ingestion, deterministic merge order, output filters, stdin ingestion, dropped-line diagnostics, richer runbook evidence structure, and the canonical shared evidence-classification rules.
 - `docs/critical_todo.md` ✅ no open critical items.
-- Code review gaps now matter more than the closed evidence-semantics issue:
-  - `triage_toolkit/models.py` and the parse JSON contract do not preserve `source_path` / source line number for successfully parsed events, so multi-input evidence is still hard to trace back to the original log line.
-  - Timeline rows and runbook evidence snippets therefore still cannot cite the original source file/stdin label and line number.
-  - Dropped-line diagnostics already expose raw rejected text. Richer evidence excerpts now exist in runbooks too, so the toolkit needs a deterministic safe-sharing path rather than relying only on upstream manual scrubbing.
+- Highest-leverage remaining gaps after ITK-019:
+  - successful parsed events still do **not** preserve source label/path + original line number
+  - timeline/runbook evidence cannot cite the original source line yet
+  - diagnostics/evidence still lack a deterministic safe-sharing/redaction mode
+  - multi-input support exists, but the outputs still do not show **which source** dominates the evidence slice
+  - determinism for equal-timestamp events is still partly implicit outside the CLI merge path
+  - the summary JSON automation surface still lacks dedicated contract/golden coverage before the next schema/output expansion
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-017 (P1): Make runbook output evidence-driven instead of mostly boilerplate
-  - Why (impact): the core parser/summary/timeline pipeline is now stable, but the runbook still reads like a generic template instead of a strong incident handoff artifact. This is the biggest remaining product gap on the human-facing output surface.
-  - DoD:
-    - Add deterministic evidence sections derived from parsed events (for example: incident window, top error signatures, suspected components with counts, representative correlation IDs, and 1-3 example failures).
-    - Example failures are chosen deterministically (for example: earliest occurrence per top signature) and remain UTC-first.
-    - Empty/filter-miss runbooks keep a stable explicit no-evidence template instead of generic filler.
-    - Reuse shared summary/evidence helpers where practical so markdown output does not fork incident-analysis rules.
-    - Update golden fixtures/tests to lock the richer markdown contract.
-    - README documents the upgraded runbook structure and how filters affect evidence sections.
-  - Verification:
-    - `pytest -q tests/test_runbook.py -k "golden or evidence or example or signature"`
-    - `pytest -q tests/test_cli.py -k "runbook and (golden or filter or strict)"`
-    - `make test`
-
-- [x] ITK-019 (P1): Unify incident evidence semantics across `summary`, `timeline`, and `runbook`
-  - Why (impact): the current repo can disagree with itself about what counts as an error/evidence event. That weakens operator trust, especially once runbook evidence gets richer.
-  - Done:
-    - Shared evidence helpers now drive `summary.error_count`, `summary.top_error_signatures`, timeline `Notable Errors`, and runbook evidence/symptom sections.
-    - Added explicit parity coverage for `ERROR`, `CRITICAL`, `FATAL`, and message-based `error` hints.
-    - Made signature/component tie-break ordering explicit and deterministic.
-    - README now documents the canonical evidence/error classification rules.
-  - Verification:
-    - `pytest -q tests/test_cli.py -k "summary and (critical or fatal or error)"`
-    - `pytest -q tests/test_timeline.py -k "critical or fatal or error"`
-    - `pytest -q tests/test_runbook.py -k "critical or fatal or error"`
-    - `make test`
-
 - [ ] ITK-020 (P1): Preserve source provenance for successful parsed events and rendered evidence
-  - Why (impact): multi-input support is already shipped, but successful events still lose the exact source file / stdin label and line number. That makes operator handoff, auditability, and incident debugging weaker than they should be.
+  - Why (impact): multi-input support is already shipped, but successful events still lose the exact source file / stdin label and line number. That weakens operator handoff, auditability, and root-cause traceability.
   - DoD:
-    - Extend the parsed event contract with deterministic source provenance for successful events (source label/path and original line number), with an explicit schema-version update.
-    - Preserve the stable stdin source label `-` and multi-input merge semantics.
-    - Surface provenance in timeline rows and runbook evidence excerpts in a concise, readable format.
-    - Keep strict parse gates and event ordering unchanged.
-    - Update README and golden fixtures/tests for the new provenance contract.
+    - Extend the parsed event contract with deterministic source provenance for successful events (`source_path`/label and original `line_number`) with an explicit parse schema-version bump.
+    - Preserve the stable stdin label `-` and current multi-input merge semantics.
+    - Surface provenance in timeline rows and runbook evidence/example sections in a concise readable form.
+    - Keep strict parse gates, evidence semantics, and event ordering unchanged.
+    - Update README and regression fixtures/tests for the new provenance contract.
   - Verification:
     - `pytest -q tests/test_parser.py -k "source and line"`
     - `pytest -q tests/test_cli.py -k "parse and provenance"`
@@ -56,17 +32,55 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + current rep
     - `pytest -q tests/test_runbook.py -k "provenance"`
     - `make test`
 
-- [ ] ITK-021 (P2): Add deterministic redaction controls for diagnostics and evidence surfaces
-  - Why (impact): dropped-line diagnostics and richer evidence snippets are valuable, but they are risky to share as-is. A safe-sharing mode would make the toolkit more usable in real support handoff workflows.
+- [ ] ITK-021 (P1): Add deterministic redaction controls for diagnostics and evidence surfaces
+  - Why (impact): dropped-line diagnostics and richer evidence snippets are useful, but risky to share raw. A built-in safe-sharing mode raises real-world usability without weakening parse-quality analysis.
   - DoD:
-    - Add an opt-in redaction mode for dropped-line diagnostics and runbook evidence snippets.
+    - Add an opt-in redaction mode for dropped-line diagnostics plus timeline/runbook evidence/example surfaces.
     - Redaction is deterministic and uses stable placeholders for at least emails, IP addresses, UUID/correlation-style identifiers, and long token-like secrets.
-    - Redaction happens after parse-quality evaluation, so strict parse behavior and counters do not change.
-    - README documents the exact placeholder policy and the limits of the built-in redaction.
-    - Regression tests prove identical input produces identical redacted output across parse/runbook paths.
+    - Redaction happens after parse-quality evaluation so strict parse behavior, counters, and error classification do not change.
+    - README documents placeholder policy, ordering guarantees, and the limits of built-in redaction.
+    - Regression tests prove identical input yields identical redacted output across parse/timeline/runbook paths.
   - Verification:
     - `pytest -q tests/test_cli.py -k "redact or diagnostics"`
+    - `pytest -q tests/test_timeline.py -k "redact or evidence"`
     - `pytest -q tests/test_runbook.py -k "redact or evidence"`
+    - `make test`
+
+- [ ] ITK-022 (P2): Surface per-source evidence concentration across summary/timeline/runbook
+  - Why (impact): once provenance exists, operators should be able to see which file/stdin source dominates the incident slice instead of inferring it manually from raw logs.
+  - DoD:
+    - Add deterministic per-source evidence counts to the summary output and concise source callouts to timeline/runbook evidence sections.
+    - Use the same stable source labels as parse output, including `-` for stdin.
+    - Ordering is deterministic: `count DESC`, then earliest evidence timestamp, then source label text.
+    - Preserve existing filter semantics and overall event ordering.
+    - Update README and tests to document the new source-focused triage surface.
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "summary and source"`
+    - `pytest -q tests/test_timeline.py -k "source"`
+    - `pytest -q tests/test_runbook.py -k "source"`
+    - `make test`
+
+- [ ] ITK-023 (P2): Make equal-timestamp determinism explicit across parse, timeline, runbook, and evidence helpers
+  - Why (impact): deterministic merge order is part of the product promise, but some downstream helper paths still rely on implicit stable-sort behavior rather than an explicit tested contract.
+  - DoD:
+    - Lock same-timestamp ordering across multi-file and file+stdin inputs for parse output, timeline rows, runbook examples, and signature/component evidence derivation.
+    - Ensure repeated filters do not disturb the original deterministic tie-break order.
+    - Document the end-to-end tie-break contract in README.
+    - Add regression tests for same-timestamp cross-source incidents.
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "stdin or tied or order"`
+    - `pytest -q tests/test_timeline.py -k "order or deterministic"`
+    - `pytest -q tests/test_runbook.py -k "order or deterministic"`
+    - `make test`
+
+- [ ] ITK-024 (P2): Add golden/contract coverage for the summary JSON automation surface
+  - Why (impact): `triage summary` is the main machine-readable handoff surface. Provenance/source/redaction work will make accidental contract drift more likely unless the JSON output shape is locked more tightly.
+  - DoD:
+    - Add dedicated contract/golden tests for summary schema version, empty/filter-miss states, `parse_summary` passthrough, `top_components`, `top_error_signatures`, and correlation coverage ordering.
+    - Cover single-input and multi-input cases so future additive changes are deliberate and reviewable.
+    - Update README examples if the locked contract changes.
+  - Verification:
+    - `pytest -q tests/test_cli.py -k "summary and (schema or contract or golden)"`
     - `make test`
 
 ---
