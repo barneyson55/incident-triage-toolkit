@@ -6,6 +6,7 @@ from datetime import datetime
 import re
 
 from .models import LogEvent
+from .redaction import redact_text
 
 _ERROR_LEVELS = {"ERROR", "CRITICAL", "FATAL"}
 _DIGIT_RE = re.compile(r"\d+")
@@ -22,6 +23,13 @@ class SignatureEvidence:
     representative: LogEvent
 
 
+@dataclass(frozen=True)
+class SourceEvidence:
+    source: str
+    count: int
+    first_seen: datetime
+
+
 def order_events(events: list[LogEvent]) -> list[LogEvent]:
     return sorted(events, key=lambda event: event.timestamp)
 
@@ -33,8 +41,15 @@ def is_error(event: LogEvent) -> bool:
 
 
 def normalize_error_message(message: str) -> str:
+    return render_error_signature(message)
+
+
+def render_error_signature(message: str, *, redact: bool = False) -> str:
     text = message.lower().strip()
-    text = _CORR_RE.sub("cid=<id>", text)
+    if redact:
+        text = redact_text(text)
+    else:
+        text = _CORR_RE.sub("cid=<id>", text)
     text = _DIGIT_RE.sub("#", text)
     return text
 
@@ -76,6 +91,43 @@ def top_error_signatures(events: list[LogEvent], *, limit: int = 3) -> list[dict
     return [
         {"name": item.signature, "count": item.count}
         for item in build_signature_evidence(events, limit=limit)
+    ]
+
+
+def _source_label(event: LogEvent) -> str:
+    return event.source_path or "n/a"
+
+
+def build_source_evidence(
+    events: list[LogEvent],
+    *,
+    limit: int | None = None,
+) -> list[SourceEvidence]:
+    grouped: dict[str, list[LogEvent]] = defaultdict(list)
+    for event in error_events(events):
+        grouped[_source_label(event)].append(event)
+
+    evidence = [
+        SourceEvidence(
+            source=source,
+            count=len(items),
+            first_seen=items[0].timestamp,
+        )
+        for source, items in grouped.items()
+    ]
+    ranked = sorted(
+        evidence,
+        key=lambda item: (-item.count, item.first_seen, item.source),
+    )
+    if limit is not None:
+        ranked = ranked[:limit]
+    return ranked
+
+
+def evidence_by_source(events: list[LogEvent], *, limit: int | None = None) -> list[dict[str, int | str]]:
+    return [
+        {"source": item.source, "count": item.count}
+        for item in build_source_evidence(events, limit=limit)
     ]
 
 

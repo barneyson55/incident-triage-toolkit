@@ -89,6 +89,26 @@ def test_timeline_includes_critical_fatal_and_message_hint_events_in_shared_evid
     assert "- web (errors: 1)" in timeline
 
 
+def test_timeline_redaction_masks_rendered_messages_and_signatures_deterministically():
+    lines = [
+        (
+            "2025-01-01T00:00:01Z ERROR api: notify alice@example.com from 10.2.3.4 "
+            "cid=550e8400-e29b-41d4-a716-446655440000 token=AbCdEfGhIjKlMnOpQrSt123456"
+        )
+    ]
+    events = [parse_line(line) for line in lines]
+    timeline = build_timeline([event for event in events if event], redact=True)
+
+    assert "alice@example.com" not in timeline
+    assert "10.2.3.4" not in timeline
+    assert "550e8400-e29b-41d4-a716-446655440000" not in timeline
+    assert "AbCdEfGhIjKlMnOpQrSt123456" not in timeline
+    assert "[redacted-email:" in timeline
+    assert "[redacted-ip:" in timeline
+    assert "[redacted-id:" in timeline
+    assert "[redacted-secret:" in timeline
+
+
 def test_timeline_golden_output_is_deterministic():
     sample = GOLDEN_DIR / "mixed_input.log"
     expected = (GOLDEN_DIR / "timeline_output.md").read_text(encoding="utf-8")

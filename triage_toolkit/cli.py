@@ -10,14 +10,15 @@ from typing import Any, NoReturn
 import typer
 
 from . import __version__
-from .evidence import error_events, top_error_signatures
+from .evidence import error_events, evidence_by_source, top_error_signatures
 from .parser import parse_file, parse_file_with_summary, parse_lines_with_summary
+from .redaction import redact_text
 from .runbook import build_runbook
 from .timeline import build_timeline
 
 _PACKAGE_NAME = "incident-triage-toolkit"
 PARSE_SCHEMA_VERSION = "1.2.0"
-SUMMARY_SCHEMA_VERSION = "1.0.0"
+SUMMARY_SCHEMA_VERSION = "1.1.0"
 
 app = typer.Typer(name="triage", help="Incident triage toolkit.")
 
@@ -182,6 +183,22 @@ def _write_output(target: str, content: str) -> None:
         _fail(f"Could not write output file '{path}': {exc}")
 
 
+def _redact_parse_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    diagnostics = summary.get("dropped_line_diagnostics")
+    if diagnostics is None:
+        return summary
+
+    redacted = dict(summary)
+    redacted["dropped_line_diagnostics"] = [
+        {
+            **diagnostic,
+            "raw_line": redact_text(str(diagnostic["raw_line"])),
+        }
+        for diagnostic in diagnostics
+    ]
+    return redacted
+
+
 def _drop_ratio(summary: dict[str, Any]) -> float:
     total_lines = int(summary["total_lines"])
     dropped_lines = int(summary["dropped_lines"])
@@ -253,6 +270,7 @@ def _build_incident_summary(events: list[Any]) -> dict[str, Any]:
         "error_count": len(evidence_events),
         "top_components": _top_items(component_counts),
         "top_error_signatures": top_error_signatures(events),
+        "evidence_by_source": evidence_by_source(events),
         "correlation_id_coverage": {
             "covered_events": correlated,
             "total_events": event_count,
@@ -286,6 +304,14 @@ def parse(
             "0 disables diagnostics."
         ),
     ),
+    redact: bool = typer.Option(
+        False,
+        "--redact",
+        help=(
+            "Redact emails, IPs, IDs, and long token-like secrets in dropped-line diagnostics. "
+            "Parse counters and strict gates stay unchanged."
+        ),
+    ),
 ) -> None:
     """Parse one or more log files and write normalized JSON output."""
     events, summary = _read_events_for_parse(paths, diagnostics_limit=diagnostics_limit)
@@ -296,7 +322,7 @@ def parse(
     payload = {
         "schema_version": PARSE_SCHEMA_VERSION,
         "events": [event.to_dict() for event in events],
-        "parse_summary": summary,
+        "parse_summary": _redact_parse_summary(summary) if redact else summary,
     }
     _write_output(out, json.dumps(payload, indent=2))
     if out != "-":
@@ -385,6 +411,14 @@ def timeline(
         "--correlation-id",
         help="Include only events whose correlation ID exactly matches this value. Repeat to widen the slice.",
     ),
+    redact: bool = typer.Option(
+        False,
+        "--redact",
+        help=(
+            "Redact emails, IPs, IDs, and long token-like secrets in rendered timeline evidence. "
+            "Filtering and strict gates still use the raw parsed events."
+        ),
+    ),
 ) -> None:
     """Generate a timeline markdown file from one or more log files."""
     events, summary = _read_events_for_parse(paths)
@@ -398,7 +432,7 @@ def timeline(
         levels=level,
         correlation_ids=correlation_id,
     )
-    content = build_timeline(filtered_events)
+    content = build_timeline(filtered_events, redact=redact)
     _write_output(out, content)
     if out != "-":
         typer.echo(f"Wrote timeline to {out}")
@@ -436,6 +470,14 @@ def runbook(
         "--correlation-id",
         help="Include only events whose correlation ID exactly matches this value. Repeat to widen the slice.",
     ),
+    redact: bool = typer.Option(
+        False,
+        "--redact",
+        help=(
+            "Redact emails, IPs, IDs, and long token-like secrets in runbook evidence/example sections. "
+            "Filtering and strict gates still use the raw parsed events."
+        ),
+    ),
 ) -> None:
     """Generate a runbook skeleton from one or more log files."""
     events, summary = _read_events_for_parse(paths)
@@ -449,7 +491,7 @@ def runbook(
         levels=level,
         correlation_ids=correlation_id,
     )
-    content = build_runbook(filtered_events, title)
+    content = build_runbook(filtered_events, title, redact=redact)
     _write_output(out, content)
     if out != "-":
         typer.echo(f"Wrote runbook to {out}")

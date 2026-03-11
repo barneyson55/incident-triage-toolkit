@@ -43,9 +43,12 @@ triage runbook samples/app.log --out runbook.md --title "Incident: Sample"
 ## CLI Commands
 - `triage parse <path...> --out parsed.json`
 - `triage parse <path...> --out parsed.json --diagnostics-limit 5`
+- `triage parse <path...> --out parsed.json --diagnostics-limit 5 --redact`
 - `triage summary <path...> --out summary.json`
 - `triage timeline <path...> --out timeline.md`
+- `triage timeline <path...> --out timeline.md --redact`
 - `triage runbook <path...> --out runbook.md --title "Incident: ..."`
+- `triage runbook <path...> --out runbook.md --title "Incident: ..." --redact`
 
 ## Multi-input ingestion & deterministic merge semantics
 `parse`, `summary`, `timeline`, and `runbook` accept multiple input files in one command.
@@ -92,8 +95,10 @@ For parse-quality investigation, `triage parse --diagnostics-limit N` adds a bou
 `parse_summary.dropped_line_diagnostics` list. Entries are emitted in deterministic
 CLI input order, then by original line number within each source file. Each entry
 includes `source_path`, `line_number`, `reason`, and the raw rejected `raw_line`.
-Diagnostics are copied verbatim from input lines, so redact sensitive logs upstream
-if needed before sharing the JSON output.
+Adding `--redact` preserves the same ordering/counters but rewrites `raw_line` with
+stable placeholders for emails, IPs, UUID/correlation-style identifiers, and long
+token-like secrets. Redaction happens after parse-quality evaluation, so strict-gate
+behavior and dropped-line classification do not change.
 
 ## Parse JSON output contract (current)
 - Top-level payload keys are locked to: `schema_version`, `events`, `parse_summary`.
@@ -142,11 +147,20 @@ Example parse payload:
 ```
 
 Timeline and runbook outputs continue to render UTC timestamps only, but now cite source provenance as `source_path:line_number` in event/evidence surfaces.
+When you add `--redact`, those human-readable surfaces keep the same event/evidence ordering but replace sensitive values with stable placeholders such as `[redacted-email:...]`, `[redacted-ip:...]`, `[redacted-id:...]`, and `[redacted-secret:...]`.
+
+### Opt-in redaction mode (`--redact`)
+- `triage parse --redact` redacts only `parse_summary.dropped_line_diagnostics[*].raw_line`.
+- `triage timeline --redact` redacts rendered message cells plus the "Notable Errors" evidence section.
+- `triage runbook --redact` redacts rendered evidence/example sections and representative correlation IDs.
+- Placeholders are deterministic for the matched value, so the same email/IP/ID/secret is rendered with the same placeholder across parse diagnostics, timeline output, and runbook output.
+- Built-in redaction is intentionally narrow and best-effort: it does **not** rewrite source paths, the structured `events[*]` payload in `triage parse`, or the machine-readable `triage summary` JSON contract.
+- Because redaction is render-time only, parse counters, strict gates, evidence selection, and overall ordering remain unchanged.
 
 ## Summary JSON output contract (current)
-- `triage summary` emits deterministic JSON with `schema_version: "1.0.0"`.
+- `triage summary` emits deterministic JSON with `schema_version: "1.1.0"`.
 - Top-level keys: `schema_version`, `incident_window`, `event_count`, `error_count`,
-  `top_components`, `top_error_signatures`, `correlation_id_coverage`, `parse_summary`.
+  `top_components`, `top_error_signatures`, `evidence_by_source`, `correlation_id_coverage`, `parse_summary`.
 - `incident_window.start/end` are canonical UTC ISO-8601 timestamps across the merged event set.
 - `top_components` is sorted by `count DESC`, then `name ASC`.
 - `top_error_signatures` uses the same shared incident-evidence rules as timeline/runbook:
@@ -154,6 +168,8 @@ Timeline and runbook outputs continue to render UTC timestamps only, but now cit
   - events whose message text contains `error` also count as evidence, even if the level is lower
   - signatures are normalized to lowercase, correlation IDs become `cid=<id>`, and digit runs become `#`
   - signature ordering is deterministic: `count DESC`, then earliest evidence timestamp, then normalized signature text
+- `evidence_by_source` counts those same evidence events per stable source label (file path or `-` for stdin).
+  Ordering is deterministic: `count DESC`, then earliest evidence timestamp for that source, then source label text.
 - Multi-input runs use the same deterministic merge contract as `parse`/`timeline`/`runbook`
   (UTC timestamp, then CLI input order, then line order within source).
 - `parse_summary` stays backward compatible for single-input runs; multi-input runs add ordered

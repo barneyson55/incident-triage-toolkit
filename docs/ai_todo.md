@@ -2,14 +2,13 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-09 18:52 UTC):
-- `git status --short --branch` ✅ clean `main...origin/main`
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-11 12:10 UTC):
+- `git status --short --branch` ✅ working tree intentionally dirty for ITK-021 completion on `main...origin/main`
 - `make lint` ✅
-- `make test` ✅ (94 passed)
-- `docs/status.md` ✅ updated for ITK-020 completion and the next redaction/source-concentration gaps.
+- `make test` ✅ (97 passed)
+- `docs/status.md` ✅ updated for ITK-021 completion and the next source-concentration/determinism gaps.
 - `docs/critical_todo.md` ✅ no open critical items.
-- Highest-leverage remaining gaps after ITK-020:
-  - diagnostics/evidence still lack a deterministic safe-sharing/redaction mode
+- Highest-leverage remaining gaps after ITK-021:
   - multi-input support exists, but the outputs still do not show **which source** dominates the evidence slice
   - determinism for equal-timestamp events is still partly implicit outside the CLI merge path
   - the summary JSON automation surface still lacks dedicated contract/golden coverage before the next schema/output expansion
@@ -31,7 +30,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo v
     - `pytest -q tests/test_runbook.py -k "provenance"`
     - `make test`
 
-- [ ] ITK-021 (P1): Add deterministic redaction controls for diagnostics and evidence surfaces
+- [x] ITK-021 (P1): Add deterministic redaction controls for diagnostics and evidence surfaces
   - Why (impact): dropped-line diagnostics and richer evidence snippets are useful, but risky to share raw. A built-in safe-sharing mode raises real-world usability without weakening parse-quality analysis.
   - DoD:
     - Add an opt-in redaction mode for dropped-line diagnostics plus timeline/runbook evidence/example surfaces.

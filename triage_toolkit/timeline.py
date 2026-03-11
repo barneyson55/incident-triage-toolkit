@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from .evidence import build_signature_evidence, component_counts, is_error, order_events
+from .evidence import build_signature_evidence, component_counts, is_error, order_events, render_error_signature
 from .models import LogEvent
+from .redaction import redact_text
 
 
 def _escape_markdown(text: str) -> str:
@@ -14,7 +15,7 @@ def _format_event_source(event: LogEvent) -> str:
     return f"{event.source_path}:{event.line_number}"
 
 
-def build_timeline(events: list[LogEvent]) -> str:
+def build_timeline(events: list[LogEvent], *, redact: bool = False) -> str:
     if not events:
         return """# Incident Timeline\n\nT0: `n/a`\n\n## Events\n\n_No events parsed._\n\n## Notable Errors\n\n- None detected in parsed input.\n\n## Suspected Components\n\n- No components inferred.\n"""
 
@@ -33,13 +34,16 @@ def build_timeline(events: list[LogEvent]) -> str:
     ]
 
     for event in ordered:
+        message = event.message.replace("\n", " ")
+        if redact:
+            message = redact_text(message)
         lines.append(
             "| {} | {} | {} | {} | {} |".format(
                 event.timestamp.isoformat(),
                 _escape_markdown(_format_event_source(event)),
                 event.level,
                 event.component,
-                _escape_markdown(event.message.replace("\n", " ")),
+                _escape_markdown(message),
             )
         )
 
@@ -49,9 +53,12 @@ def build_timeline(events: list[LogEvent]) -> str:
         lines.append("- None detected in parsed input.")
     else:
         for evidence in build_signature_evidence(ordered):
+            signature = evidence.signature
+            if redact:
+                signature = render_error_signature(evidence.representative.message, redact=True)
             lines.append(
                 "- {} (count: {}, first: {}, last: {})".format(
-                    evidence.signature,
+                    signature,
                     evidence.count,
                     evidence.first_seen.isoformat(),
                     evidence.last_seen.isoformat(),

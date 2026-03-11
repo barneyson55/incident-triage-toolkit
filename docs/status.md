@@ -9,24 +9,37 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- ITK-020 completed (successful parsed events and rendered evidence now preserve source provenance):
-  - `triage_toolkit/models.py::LogEvent` now carries `source_path` and `line_number`, and the parse JSON schema moved to `1.2.0`.
-  - `triage_toolkit/parser.py::parse_lines_with_summary()` now stamps each successful event with its stable source label (`-` for stdin, full path for files) plus original 1-based line number without changing parse gates or merge ordering.
-  - `triage_toolkit/timeline.py` now renders a concise `Source` column as `source_path:line_number` for each timeline row.
-  - `triage_toolkit/runbook.py` now cites the same provenance in top-signature evidence (`example: ...`) and example-failure bullets.
-  - `README.md` and golden fixtures now document/lock the new schema and provenance rendering contract.
+- ITK-022 progress (summary milestone: per-source evidence concentration is now exposed in the JSON surface):
+  - `triage_toolkit/evidence.py` now groups evidence events by stable source label and ranks sources deterministically by `count DESC`, earliest evidence timestamp, then source label text.
+  - `triage_toolkit/cli.py` now adds `evidence_by_source` to `triage summary` and bumps the summary schema to `1.1.0` for the additive contract change.
+  - `tests/test_cli.py` now locks single-input, multi-input, stdin-label, and filter/empty-slice behavior for `evidence_by_source`.
+  - `README.md` now documents the new summary field and its ordering contract.
 - Why:
-  - Multi-input incidents are much more auditable when normalized events can be traced back to the exact file/stdin source and original line.
+  - Automation and operators can now see which source dominates the evidence slice without manually inferring it from raw event provenance.
 - Risks / follow-ups:
-  - Dropped-line diagnostics and evidence excerpts still need deterministic redaction controls before safe-sharing is strong enough by default.
-  - The next useful upgrade is per-source evidence concentration so operators can see which source dominates the incident slice.
+  - Timeline and runbook still need concise source callouts before ITK-022 is fully complete.
+  - Equal-timestamp behavior is still partly implicit in shared ordering helpers and is queued next in ITK-023.
 - Verification run:
-  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "source and line"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse and provenance"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "provenance"` ✅
-  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "provenance"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary"` ✅ (13 passed)
   - `make lint` ✅
-  - `make test` ✅ (94 passed)
+  - `make test` ✅ (98 passed)
+- ITK-021 completed (deterministic redaction controls for diagnostics and evidence surfaces):
+  - Added `triage_toolkit/redaction.py`, a shared render-time redaction helper that emits stable placeholders for emails, IPs, UUID/correlation-style identifiers, and long token-like secrets.
+  - `triage_toolkit/cli.py` now supports opt-in `--redact` on `parse`, `timeline`, and `runbook`; parse redaction only rewrites `parse_summary.dropped_line_diagnostics[*].raw_line`, so raw event payloads, counters, and strict gates stay unchanged.
+  - `triage_toolkit/evidence.py`, `triage_toolkit/timeline.py`, and `triage_toolkit/runbook.py` now preserve the existing evidence ordering/grouping while redacting rendered message/evidence/example surfaces and representative correlation IDs at output time.
+  - `tests/test_cli.py`, `tests/test_timeline.py`, and `tests/test_runbook.py` now lock the cross-surface redaction contract, including deterministic placeholder reuse across parse diagnostics, timeline output, and runbook output.
+  - `README.md` now documents the `--redact` scope, placeholder policy, ordering guarantees, and the deliberate limits of built-in redaction.
+- Why:
+  - Operators can now share parse diagnostics and human-readable triage artifacts more safely without weakening parse-quality analysis or deterministic incident rendering.
+- Risks / follow-ups:
+  - Built-in redaction is intentionally narrow/best-effort and does not rewrite structured `triage parse` event payloads or the machine-readable `triage summary` JSON contract.
+  - Follow-on work moved into ITK-022, which is now in progress with summary JSON complete and timeline/runbook source callouts still pending.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "redact or diagnostics"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "redact or evidence"` ✅
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "redact or evidence"` ✅
+  - `make lint` ✅
+  - `make test` ✅ (97 passed)
 
 ## Next
-- Start ITK-021 by adding deterministic redaction controls for diagnostics and evidence surfaces.
+- Continue ITK-022 by surfacing concise per-source evidence callouts in timeline and runbook output.

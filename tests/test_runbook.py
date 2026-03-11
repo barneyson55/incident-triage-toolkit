@@ -120,6 +120,26 @@ def test_runbook_uses_shared_incident_evidence_rules_for_critical_fatal_and_mess
     assert "- `2025-01-01T00:00:04+00:00` `INFO` `web` — upstream error on request 99 (source: `n/a`)" in runbook
 
 
+def test_runbook_redaction_masks_signatures_examples_and_correlation_ids_deterministically():
+    lines = [
+        (
+            "2025-01-01T00:00:01Z ERROR api: notify alice@example.com from 10.2.3.4 "
+            "cid=550e8400-e29b-41d4-a716-446655440000 token=AbCdEfGhIjKlMnOpQrSt123456"
+        )
+    ]
+    events = [parse_line(line) for line in lines]
+    runbook = build_runbook([event for event in events if event], "Incident: Redacted", redact=True)
+
+    assert "alice@example.com" not in runbook
+    assert "10.2.3.4" not in runbook
+    assert "550e8400-e29b-41d4-a716-446655440000" not in runbook
+    assert "AbCdEfGhIjKlMnOpQrSt123456" not in runbook
+    assert "[redacted-email:" in runbook
+    assert "[redacted-ip:" in runbook
+    assert "[redacted-id:" in runbook
+    assert "[redacted-secret:" in runbook
+
+
 def test_runbook_golden_output_is_deterministic():
     sample = GOLDEN_DIR / "mixed_input.log"
     expected = (GOLDEN_DIR / "runbook_output.md").read_text(encoding="utf-8")

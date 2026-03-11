@@ -1,4 +1,5 @@
 import json
+import re
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 
@@ -11,6 +12,12 @@ from triage_toolkit.cli import app
 
 runner = CliRunner()
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
+
+
+def _extract_redaction_placeholder(text: str, kind: str) -> str:
+    match = re.search(rf"\[redacted-{kind}:[a-z]+\]", text)
+    assert match is not None
+    return match.group(0)
 
 
 def _expected_version() -> str:
@@ -244,6 +251,60 @@ def test_parse_stdin_only_uses_stable_source_label_for_diagnostics():
             "raw_line": "bad-line",
         }
     ]
+
+
+def test_redaction_placeholders_are_stable_across_parse_timeline_and_runbook(tmp_path):
+    sensitive_email = "alice@example.com"
+    sensitive_ip = "10.2.3.4"
+    sensitive_id = "550e8400-e29b-41d4-a716-446655440000"
+    sensitive_secret = "AbCdEfGhIjKlMnOpQrSt123456"
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                f"bad {sensitive_email} {sensitive_ip} cid={sensitive_id} token={sensitive_secret}",
+                (
+                    "2025-01-01T00:00:01Z ERROR api: notify "
+                    f"{sensitive_email} from {sensitive_ip} cid={sensitive_id} token={sensitive_secret}"
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    parse_result = runner.invoke(
+        app,
+        ["parse", str(sample), "--out", "-", "--diagnostics-limit", "1", "--redact"],
+    )
+    timeline_result = runner.invoke(app, ["timeline", str(sample), "--out", "-", "--redact"])
+    runbook_result = runner.invoke(
+        app,
+        ["runbook", str(sample), "--out", "-", "--title", "Incident: Redacted", "--redact"],
+    )
+
+    assert parse_result.exit_code == 0
+    assert timeline_result.exit_code == 0
+    assert runbook_result.exit_code == 0
+
+    parse_payload = json.loads(parse_result.stdout)
+    diagnostic = parse_payload["parse_summary"]["dropped_line_diagnostics"][0]["raw_line"]
+    placeholders = {
+        kind: _extract_redaction_placeholder(diagnostic, kind)
+        for kind in ["email", "ip", "id", "secret"]
+    }
+
+    assert parse_payload["parse_summary"]["dropped_lines"] == 1
+    assert parse_payload["parse_summary"]["parsed_lines"] == 1
+
+    for sensitive_value in [sensitive_email, sensitive_ip, sensitive_id, sensitive_secret]:
+        assert sensitive_value not in diagnostic
+        assert sensitive_value not in timeline_result.stdout
+        assert sensitive_value not in runbook_result.stdout
+
+    for placeholder in placeholders.values():
+        assert placeholder in timeline_result.stdout
+        assert placeholder in runbook_result.stdout
 
 
 def test_parse_multiple_inputs_with_stdin_preserve_cli_input_order_for_tied_timestamps(tmp_path):
@@ -511,6 +572,9 @@ def test_summary_stdout_returns_machine_readable_contract(tmp_path):
         {"name": "connection timeout cid=<id>", "count": 1},
         {"name": "connection timeout", "count": 1},
     ]
+    assert payload["evidence_by_source"] == [
+        {"source": str(sample), "count": 2},
+    ]
     assert payload["correlation_id_coverage"] == {
         "covered_events": 2,
         "total_events": 3,
@@ -560,6 +624,10 @@ def test_summary_multiple_inputs_merges_counts_and_incident_window(tmp_path):
         {"name": "web", "count": 1},
     ]
     assert payload["top_error_signatures"] == [{"name": "connection timeout", "count": 2}]
+    assert payload["evidence_by_source"] == [
+        {"source": str(source_b), "count": 1},
+        {"source": str(source_a), "count": 1},
+    ]
     assert payload["correlation_id_coverage"] == {
         "covered_events": 1,
         "total_events": 3,
@@ -590,6 +658,27 @@ def test_summary_multiple_inputs_merges_counts_and_incident_window(tmp_path):
             },
         ],
     }
+
+
+def test_summary_surfaces_stdin_label_in_evidence_by_source_and_uses_source_text_for_final_tie_break(tmp_path):
+    source_file = tmp_path / "file.log"
+    source_file.write_text(
+        "2025-01-01T00:00:01Z ERROR api: from-file\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["summary", str(source_file), "-", "--out", "-"],
+        input="2025-01-01T00:00:01Z ERROR worker: from-stdin\n",
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["evidence_by_source"] == [
+        {"source": "-", "count": 1},
+        {"source": str(source_file), "count": 1},
+    ]
 
 
 def test_summary_multiple_inputs_strict_uses_aggregate_drop_ratio(tmp_path):
@@ -752,6 +841,7 @@ def test_summary_filters_slice_events_with_repeated_or_flags_and_and_across_fiel
         {"name": "worker", "count": 1},
     ]
     assert payload["top_error_signatures"] == [{"name": "timeout cid=<id>", "count": 2}]
+    assert payload["evidence_by_source"] == [{"source": str(sample), "count": 2}]
     assert payload["correlation_id_coverage"] == {
         "covered_events": 2,
         "total_events": 2,
@@ -785,6 +875,7 @@ def test_summary_filters_return_empty_slice_without_mutating_raw_parse_summary(t
     assert payload["error_count"] == 0
     assert payload["top_components"] == []
     assert payload["top_error_signatures"] == []
+    assert payload["evidence_by_source"] == []
     assert payload["correlation_id_coverage"] == {
         "covered_events": 0,
         "total_events": 0,
