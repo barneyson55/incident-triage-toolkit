@@ -1,4 +1,4 @@
-Generated: 2026-03-11 19:03 UTC  
+Generated: 2026-03-11 20:05 UTC  
 Repository: `incident-triage-toolkit`  
 Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against the live repo state.
 
@@ -8,9 +8,9 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 - `docs/ai_todo.md` (pre-refresh)
 - `docs/deep_research_auto.md` (pre-refresh)
 - `README.md`
-- `triage_toolkit/{cli.py,evidence.py,models.py,parser.py,runbook.py,timeline.py}`
-- `tests/{test_cli.py,test_main.py,test_parser.py,test_runbook.py,test_timeline.py,test_utils.py}`
-- `tests/fixtures/golden/{parse_output.json,timeline_output.md,runbook_output.md,mixed_input.log}`
+- `triage_toolkit/{cli.py,evidence.py,models.py,parser.py,redaction.py,runbook.py,timeline.py}`
+- `tests/{test_cli.py,test_main.py,test_parser.py,test_runbook.py,test_summary_contract.py,test_timeline.py,test_utils.py}`
+- `tests/fixtures/golden/{parse_output.json,summary_output_single.json,summary_output_multi.json,summary_output_stdin.json,summary_output_filter_miss.json,timeline_output.md,runbook_output.md,mixed_input.log}`
 
 ## Docs file existence check
 - `docs/status.md` ✅ exists
@@ -20,54 +20,51 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 
 ## Local verification run
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `make test` ✅ (`106 passed`)
+- `make test` ✅ (`111 passed`)
 
 ## Live architecture snapshot
-1. **The shipping product is in a contract-hardening phase, not a feature-gap phase**
+1. **The repo is still in a contract-and-helper hardening phase, not a greenfield feature phase**
    - Core CLI surfaces already exist for `parse`, `summary`, `timeline`, and `runbook`.
-   - Current docs and tests show recent work landed around deterministic ordering, source provenance, source-ranked evidence, and redaction.
-   - The highest-value next work is therefore concentrated on locking contracts and localizing regressions faster.
+   - Recent completed work locked summary golden outputs and clarified same-timestamp determinism.
+   - The biggest remaining leverage is now in making shared helper regressions fail closer to their source.
 
-2. **`triage summary` is now a first-class automation API but still lacks a dedicated golden suite**
-   - `triage_toolkit/cli.py` emits `SUMMARY_SCHEMA_VERSION = "1.1.0"` and includes `incident_window`, `top_components`, `top_error_signatures`, `evidence_by_source`, `correlation_id_coverage`, and `parse_summary`.
-   - The repo already carries dedicated golden fixtures for parse/timeline/runbook, but there is no matching `summary` fixture module yet.
-   - The current summary behavior is tested mainly inside `tests/test_cli.py`, which is good coverage but not the clearest review surface for contract drift.
-   - Conclusion: a dedicated `summary` contract/golden suite is the highest-leverage next item.
+2. **`triage_toolkit/evidence.py` is now a high-value dependency surface**
+   - Shared evidence/ranking logic now feeds `summary`, `timeline`, and `runbook`.
+   - `order_events(...)` carries the documented deterministic tie-break path, but there is still no dedicated `tests/test_evidence.py`.
+   - Conclusion: focused evidence-helper tests are the strongest next payoff.
 
-3. **Shared evidence logic has become a critical dependency surface**
-   - `triage_toolkit/evidence.py` now provides shared ordering and evidence ranking used by summary, timeline, and runbook.
-   - `order_events(...)` now carries the explicit tie-break path (`timestamp`, source-order/path fallback, line number, original iterable position), which is exactly the kind of helper behavior that should have direct unit coverage.
-   - Today most regressions would still be discovered indirectly through broader CLI/timeline/runbook tests.
-   - Conclusion: helper-level tests in `tests/test_evidence.py` are the next-best payoff after summary contract locking.
+3. **`triage_toolkit/cli.py` concentrates cross-command behavior that still lacks focused helper tests**
+   - Parse-summary aggregation, strict parse gates, bounded diagnostics carry-forward, and reusable filters all live here now.
+   - Those rules affect multiple commands, but current protection is still mostly at the command/CLI layer.
+   - Conclusion: helper-focused CLI tests should follow immediately after the evidence helper suite.
 
-4. **Shared CLI plumbing is another multi-surface risk concentration point**
-   - `triage_toolkit/cli.py` centralizes parse-summary merging, bounded dropped-line diagnostics carry-forward, strict parse gates, and reusable filter semantics.
-   - Those rules affect `summary`, `timeline`, and `runbook`, but most current protection remains command-level.
-   - A smaller helper-focused test module would make regressions easier to localize without replacing the broader CLI tests.
-   - Conclusion: direct tests for CLI helpers are the right third item once summary and evidence hardening are queued.
+4. **`triage_toolkit/redaction.py` is tested end-to-end but not directly enough for regex-heavy changes**
+   - Redaction touches parse diagnostics plus human-readable timeline/runbook outputs.
+   - Existing CLI/timeline/runbook tests cover outcomes, but not the helper-level boundaries that are easiest to accidentally shift.
+   - Conclusion: a direct redaction helper suite is the right third live item once evidence and CLI helper tests are queued first.
 
 ## Roadmap decisions derived from the current repo
 
-### P1 — ITK-024: Add dedicated golden/contract coverage for summary JSON
-**Why now:** `summary` is a versioned machine-readable surface and the only major output contract that still lacks its own dedicated golden/contract module.
-
 ### P1 — ITK-025: Add direct unit coverage for shared evidence and ranking helpers
-**Why next:** the repo now depends on `evidence.py` for several surfaces at once, so helper-level regressions should fail closer to the source.
+**Why now:** evidence ordering and ranking behavior now spans several user-facing surfaces, so regressions should fail nearer to `evidence.py` instead of only through larger integration tests.
 
-### P2 — ITK-026: Add direct unit coverage for shared CLI ingestion/filter/strict-gate helpers
-**Why after that:** CLI helper logic is now important enough to merit smaller focused tests, but the immediate leverage is still better on summary contract locking and evidence-helper coverage.
+### P1 — ITK-026: Add direct unit coverage for shared CLI ingestion/filter/strict-gate helpers
+**Why next:** shared CLI plumbing now carries core correctness rules for multiple commands, and the repo would benefit from faster fault localization there.
+
+### P2 — ITK-027: Add direct unit coverage for shared redaction helpers and placeholder stability
+**Why after that:** redaction already has good end-to-end coverage, but direct helper tests would lock regex ordering and false-positive boundaries before future changes land.
 
 ## Explicitly de-prioritized in this pass
-- New parser-format expansion: no current repo evidence says new formats outrank contract/test hardening.
-- Fresh feature work on timeline/runbook output shape: the recent priority items for those surfaces are already complete.
-- Reopening provenance or redaction as top-level roadmap items: both are already shipped and covered enough to move down unless new regressions appear.
+- New parser-format expansion: nothing in the current repo evidence says new format support now outranks hardening shared helper behavior.
+- Fresh output-shape feature work for `timeline` or `runbook`: those surfaces just received deterministic/evidence-oriented improvements and are not the highest-risk gap anymore.
+- Reopening summary contract work as the top priority: that gap was closed by the existing `tests/test_summary_contract.py` suite.
 
 ## Risks / blockers to monitor
-- ITK-024 should lock semantic contract shape/content without overpromising irrelevant JSON key ordering details.
-- ITK-025 must preserve the documented deterministic ordering contract, especially for same-timestamp events with/without explicit source metadata.
-- ITK-026 should keep helper tests tied to public CLI behavior, not to brittle incidental implementation details.
+- ITK-025 must preserve the documented deterministic ordering contract, especially for tied timestamps with and without explicit source metadata.
+- ITK-026 should test public behavior and invariants rather than pinning brittle incidental implementation details.
+- ITK-027 needs to lock current redaction boundaries without making future placeholder additions unnecessarily painful.
 
 ## Priority mapping reflected in `docs/ai_todo.md`
-1. ITK-024 — dedicated summary JSON golden/contract coverage
-2. ITK-025 — direct evidence/ranking helper unit coverage
-3. ITK-026 — direct CLI ingestion/filter/strict-gate helper coverage
+1. ITK-025 — direct evidence/ranking helper unit coverage
+2. ITK-026 — direct CLI ingestion/filter/strict-gate helper coverage
+3. ITK-027 — direct redaction helper and placeholder-stability coverage

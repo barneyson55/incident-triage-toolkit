@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-025 completed (shared evidence/ranking helpers now have direct unit coverage):
+  - Added `tests/test_evidence.py` with focused helper coverage for `is_error`, `order_events`, signature normalization/ranking, source evidence ranking, component ranking, representative correlation-ID selection, and redaction-aware signature rendering.
+  - Locked tied-timestamp helper ordering explicitly at the unit layer so shared evidence grouping stays aligned with the documented CLI determinism contract even when callers pass events in an arbitrary order.
+  - Kept the change surface minimal: no production code or public contract changes were needed because the current helper behavior already matched the intended semantics.
+- Why:
+  - `triage_toolkit/evidence.py` feeds summary, timeline, and runbook output, so direct helper tests make regressions easier to localize than broader command failures alone.
+- Risks / follow-ups:
+  - Shared CLI ingestion/filter/strict-gate helpers still rely mostly on command-level coverage and remain queued next in ITK-026.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_evidence.py` ✅ (7 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary or redact or deterministic"` ✅ (19 passed)
+  - `make lint` ✅
+  - `make test` ✅ (118 passed)
 - ITK-024 completed (dedicated summary JSON contract coverage now exists alongside the other golden surfaces):
   - Added `tests/test_summary_contract.py` with dedicated summary contract coverage for single-input, multi-input, file+stdin, and filter-miss/empty-slice outputs.
   - Added summary-specific golden fixtures under `tests/fixtures/golden/`: `summary_output_single.json`, `summary_output_multi.json`, `summary_output_stdin.json`, `summary_output_filter_miss.json`, plus stable input logs for the multi-input and stdin cases.
@@ -73,4 +86,4 @@
   - `make test` ✅ (97 passed)
 
 ## Next
-- Start ITK-025 by adding direct unit coverage for shared evidence and ranking helpers.
+- Start ITK-026 by adding direct unit coverage for shared CLI ingestion, strict-gate, and filter helpers.
