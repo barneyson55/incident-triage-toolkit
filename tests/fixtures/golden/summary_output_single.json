@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.1.0",
+  "incident_window": {
+    "start": "2025-03-01T10:00:00+00:00",
+    "end": "2025-03-01T10:00:04+00:00"
+  },
+  "event_count": 4,
+  "error_count": 2,
+  "top_components": [
+    {
+      "name": "api",
+      "count": 2
+    },
+    {
+      "name": "db",
+      "count": 1
+    },
+    {
+      "name": "worker",
+      "count": 1
+    }
+  ],
+  "top_error_signatures": [
+    {
+      "name": "query failed cid=<id>",
+      "count": 1
+    },
+    {
+      "name": "request # for user #",
+      "count": 1
+    }
+  ],
+  "evidence_by_source": [
+    {
+      "source": "tests/fixtures/golden/mixed_input.log",
+      "count": 2
+    }
+  ],
+  "correlation_id_coverage": {
+    "covered_events": 2,
+    "total_events": 4,
+    "coverage_ratio": 0.5
+  },
+  "parse_summary": {
+    "total_lines": 5,
+    "parsed_lines": 4,
+    "dropped_lines": 1,
+    "drop_ratio": 0.2,
+    "dropped_reasons": {
+      "unrecognized_text": 1
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.1.0",
+  "incident_window": {
+    "start": "2025-01-01T00:00:01+00:00",
+    "end": "2025-01-01T00:00:03+00:00"
+  },
+  "event_count": 3,
+  "error_count": 2,
+  "top_components": [
+    {
+      "name": "api",
+      "count": 1
+    },
+    {
+      "name": "db",
+      "count": 1
+    },
+    {
+      "name": "web",
+      "count": 1
+    }
+  ],
+  "top_error_signatures": [
+    {
+      "name": "connection timeout",
+      "count": 2
+    }
+  ],
+  "evidence_by_source": [
+    {
+      "source": "tests/fixtures/golden/summary_multi_b.log",
+      "count": 1
+    },
+    {
+      "source": "tests/fixtures/golden/summary_multi_a.log",
+      "count": 1
+    }
+  ],
+  "correlation_id_coverage": {
+    "covered_events": 1,
+    "total_events": 3,
+    "coverage_ratio": 0.333333
+  },
+  "parse_summary": {
+    "total_lines": 5,
+    "parsed_lines": 3,
+    "dropped_lines": 2,
+    "drop_ratio": 0.4,
+    "dropped_reasons": {
+      "unrecognized_text": 2
+    },
+    "per_source": [
+      {
+        "path": "tests/fixtures/golden/summary_multi_a.log",
+        "total_lines": 2,
+        "parsed_lines": 1,
+        "dropped_lines": 1,
+        "drop_ratio": 0.5,
+        "dropped_reasons": {
+          "unrecognized_text": 1
+        }
+      },
+      {
+        "path": "tests/fixtures/golden/summary_multi_b.log",
+        "total_lines": 3,
+        "parsed_lines": 2,
+        "dropped_lines": 1,
+        "drop_ratio": 0.333333,
+        "dropped_reasons": {
+          "unrecognized_text": 1
+        }
+      }
+    ]
+  }
+}

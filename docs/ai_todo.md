@@ -2,37 +2,52 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-11 18:02 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-11 19:03 UTC):
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `make test` ✅ (`102 passed`)
-- `docs/status.md` ✅ confirms ITK-022 is complete and explicitly queues ITK-023 next
+- `make test` ✅ (`111 passed`)
+- `docs/status.md` ✅ confirms ITK-024 is complete and explicitly queues ITK-025 next
 - `docs/critical_todo.md` ✅ exists and has no open critical items
+- Current repo facts from this maintenance pass:
+  - dedicated golden fixtures now exist for `parse`, `summary`, `timeline`, and `runbook`
+  - `triage_toolkit/evidence.py` now carries shared ordering/evidence behavior for multiple outputs, but still lacks direct unit coverage
+  - `triage_toolkit/cli.py` now centralizes parse-summary merging, diagnostics budgeting, strict gates, and output-slice filters, but those paths are still protected mostly through broader CLI tests
 - Highest-leverage remaining gaps after the latest verification:
-  - `triage summary` is now a versioned automation surface, but it still lacks dedicated golden/contract fixtures of its own
-  - shared evidence/ranking semantics are still protected mostly indirectly via CLI/timeline/runbook tests, which makes regressions slower to localize
+  - helper-layer regressions in shared evidence or CLI plumbing are still slower to localize than they should be
+  - the live queue should stay 3-7 items, so the next hardening step after ITK-025 is now explicit instead of implicit
 
 ## Open priorities (highest engineering impact first)
 
-- [ ] ITK-024 (P2): Add dedicated golden/contract coverage for the summary JSON automation surface
-  - Why (impact): `triage summary` is now the main machine-readable handoff surface and already carries `schema_version: "1.1.0"` plus `evidence_by_source`, but unlike parse/timeline/runbook it still lacks dedicated fixtures that make contract drift obvious in review.
+- [x] ITK-024 (P1): Add dedicated golden/contract coverage for the summary JSON automation surface
+  - Why (impact): `triage summary` is the primary machine-readable handoff surface and already ships `schema_version: "1.1.0"`, `evidence_by_source`, and filter-aware incident slicing. Unlike parse/timeline/runbook, it still lacks a dedicated golden/contract suite that makes drift obvious in review.
   - DoD:
-    - Add `tests/test_summary_contract.py` plus focused golden fixtures for single-input, multi-input, stdin-label, and empty/filter-miss summary outputs.
+    - Add `tests/test_summary_contract.py` plus golden fixtures for single-input, multi-input, stdin-label, and empty/filter-miss summary outputs.
     - Lock the current summary contract for `schema_version`, `incident_window`, `event_count`, `error_count`, `top_components`, `top_error_signatures`, `evidence_by_source`, `correlation_id_coverage`, and `parse_summary`.
-    - Keep fixture updates deliberate: any intentional contract change must update tests and README together.
+    - Keep fixture updates deliberate: any intentional summary contract change must update tests and `README.md` together.
   - Verification:
     - `pytest -q tests/test_summary_contract.py`
     - `pytest -q tests/test_cli.py -k "summary"`
     - `make test`
 
-- [ ] ITK-025 (P2): Add direct unit coverage for shared evidence and ranking helpers
-  - Why (impact): `triage_toolkit/evidence.py` now drives summary, timeline, and runbook behavior, but most protection is still indirect through higher-level outputs. A small helper regression can therefore break several surfaces at once while making root cause slower to pinpoint.
+- [ ] ITK-025 (P1): Add direct unit coverage for shared evidence and ranking helpers
+  - Why (impact): `triage_toolkit/evidence.py` now drives summary, timeline, and runbook behavior. A small helper regression can therefore break several surfaces at once while only failing through higher-level tests, which makes root cause slower to pinpoint.
   - DoD:
-    - Add `tests/test_evidence.py` covering `is_error`, `order_events`, signature normalization/ranking, source-evidence ranking, and representative correlation-ID selection.
-    - Include tied-timestamp cases that prove helper-level ordering stays aligned with the CLI determinism contract.
+    - Add `tests/test_evidence.py` covering `is_error`, `order_events`, signature normalization/ranking, source-evidence ranking, component ranking, and representative correlation-ID selection.
+    - Include tied-timestamp cases that prove helper-level ordering stays aligned with the documented CLI determinism contract.
     - Cover redaction-aware signature rendering without duplicating full markdown/JSON golden payloads.
   - Verification:
     - `pytest -q tests/test_evidence.py`
-    - `pytest -q tests/test_cli.py -k "summary or redact"`
+    - `pytest -q tests/test_cli.py -k "summary or redact or deterministic"`
+    - `make test`
+
+- [ ] ITK-026 (P2): Add direct unit coverage for shared CLI ingestion, strict-gate, and filter helpers
+  - Why (impact): `triage_toolkit/cli.py` now owns parse-summary aggregation, diagnostics-budget carry-forward, strict parse gating, and reusable event-slice filters for `summary`, `timeline`, and `runbook`. Those behaviors are critical, but today most regressions would surface only through larger command-level tests.
+  - DoD:
+    - Add `tests/test_cli_helpers.py` covering `_merge_parse_summaries`, `_apply_event_filters`, `_strict_parse_error`, and `_read_events_for_parse` behavior for per-source ordering and bounded diagnostics carry-forward.
+    - Lock repeated-flag OR semantics, cross-filter AND semantics, aggregate drop-ratio rounding, and the rule that filters never mutate or bypass raw `parse_summary` quality signals.
+    - Keep helper expectations aligned with the public CLI/README contract rather than inventing a separate private contract.
+  - Verification:
+    - `pytest -q tests/test_cli_helpers.py`
+    - `pytest -q tests/test_cli.py -k "strict or filter or diagnostics or per_source"`
     - `make test`
 
 ---

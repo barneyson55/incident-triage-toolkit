@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-024 completed (dedicated summary JSON contract coverage now exists alongside the other golden surfaces):
+  - Added `tests/test_summary_contract.py` with dedicated summary contract coverage for single-input, multi-input, file+stdin, and filter-miss/empty-slice outputs.
+  - Added summary-specific golden fixtures under `tests/fixtures/golden/`: `summary_output_single.json`, `summary_output_multi.json`, `summary_output_stdin.json`, `summary_output_filter_miss.json`, plus stable input logs for the multi-input and stdin cases.
+  - The summary suite now locks the current automation surface for `schema_version`, `incident_window`, `event_count`, `error_count`, `top_components`, `top_error_signatures`, `evidence_by_source`, `correlation_id_coverage`, and `parse_summary` without changing the public contract or `README.md`.
+- Why:
+  - `triage summary` is the machine-readable handoff surface most likely to feed downstream automation, so contract drift now becomes obvious in review instead of hiding inside broader CLI assertions.
+- Risks / follow-ups:
+  - Summary fixture coverage is intentionally focused on the current `1.1.0` surface; helper-level regressions in shared evidence ranking/order logic are still queued next in ITK-025.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_summary_contract.py` ✅ (5 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary"` ✅ (15 passed)
+  - `make lint` ✅
+  - `make test` ✅ (111 passed)
 - ITK-023 completed (equal-timestamp determinism is now explicit across parse + helper paths):
   - `triage_toolkit/models.py` now carries an internal `source_order` field on `LogEvent`, so multi-input CLI ingestion can preserve explicit source-position metadata without changing the public JSON contract.
   - `triage_toolkit/parser.py`, `triage_toolkit/cli.py`, and `triage_toolkit/evidence.py` now propagate that source-order metadata from multi-file/stdin ingestion and use one shared `order_events(...)` tie-break path: UTC timestamp, then source order (or stable source label fallback), then original line number, then original iterable position.
@@ -18,7 +31,7 @@
   - Deterministic same-timestamp ordering is now an explicit shared implementation detail rather than an accidental property of already-sorted caller input, which lowers regression risk across parse, summary, timeline, and runbook surfaces.
 - Risks / follow-ups:
   - The public parse/summary contracts are unchanged, but helper-level fallback ordering for events that do not carry CLI source metadata still uses stable source labels or original iterable position; dedicated helper unit coverage is still queued in ITK-025.
-  - Dedicated golden/contract tests for the summary JSON automation surface are still queued in ITK-024.
+  - Dedicated golden/contract tests for the summary JSON automation surface were completed in ITK-024.
 - Verification run:
   - `.venv/bin/python -m pytest -q tests/test_cli.py -k "same_timestamp or tied or stdin"` ✅ (10 passed)
   - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "ordering or deterministic"` ✅ (5 passed)
@@ -60,4 +73,4 @@
   - `make test` ✅ (97 passed)
 
 ## Next
-- Start ITK-024 by adding dedicated golden/contract coverage for the summary JSON automation surface.
+- Start ITK-025 by adding direct unit coverage for shared evidence and ranking helpers.
