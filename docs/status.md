@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-026 completed (shared CLI ingestion/filter/strict-gate/write helpers now have direct unit coverage):
+  - Added `tests/test_cli_helpers.py` with focused helper coverage for `_merge_parse_summaries`, `_apply_event_filters`, `_strict_parse_error`, `_read_events_for_parse`, and `_write_output`.
+  - Locked helper-level expectations for aggregate drop-ratio rounding, repeated-flag OR semantics plus cross-filter AND semantics, strict-gate failure messaging, bounded dropped-line diagnostics carry-forward across file/stdin ingestion, duplicate-stdin rejection, and parent-directory creation for file outputs.
+  - Kept the change surface minimal: no production code or public contract changes were needed because the existing helper behavior already matched the README/CLI contract.
+- Why:
+  - `triage_toolkit/cli.py` owns the shared plumbing used by every command, so direct helper tests make regressions easier to isolate than broader CLI failures alone.
+- Risks / follow-ups:
+  - Shared redaction helper behavior is still queued next in ITK-027.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py` ✅ (7 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "strict or filter or diagnostics or per_source or write"` ✅ (24 passed)
+  - `make lint` ✅
+  - `make test` ✅ (125 passed)
 - ITK-025 completed (shared evidence/ranking helpers now have direct unit coverage):
   - Added `tests/test_evidence.py` with focused helper coverage for `is_error`, `order_events`, signature normalization/ranking, source evidence ranking, component ranking, representative correlation-ID selection, and redaction-aware signature rendering.
   - Locked tied-timestamp helper ordering explicitly at the unit layer so shared evidence grouping stays aligned with the documented CLI determinism contract even when callers pass events in an arbitrary order.
@@ -86,4 +99,4 @@
   - `make test` ✅ (97 passed)
 
 ## Next
-- Start ITK-026 by adding direct unit coverage for shared CLI ingestion, strict-gate, and filter helpers.
+- Start ITK-027 by adding direct unit coverage for shared redaction helpers and placeholder stability.
