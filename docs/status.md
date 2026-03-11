@@ -111,5 +111,11 @@
   - `make lint` ✅
   - `make test` ✅ (97 passed)
 
+## Latest blocker
+- ITK-028 is blocked before implementation:
+  - The mandated coding-agent path (`codex exec --full-auto ...`) failed immediately with `401 Unauthorized: Missing bearer or basic authentication in header` in `/home/node/.openclaw/workspace/projects/auto-senior-pm/repos/incident-triage-toolkit`.
+  - No product/test files were changed for ITK-028, and no verification suite was run because the coding agent never reached repository work.
+  - Required human action is recorded in `docs/user_todo.md`.
+
 ## Next
-- Start ITK-028 by adding a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice.
+- Restore coding-agent auth, then resume ITK-028 by adding a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice.

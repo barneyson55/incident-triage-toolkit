@@ -2,40 +2,24 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-11 22:27 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-11 23:40 UTC):
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `docs/status.md` ✅ exists and records ITK-026 as complete while explicitly queuing ITK-027 next
+- `docs/status.md` ✅ exists and records ITK-027 as complete while explicitly queuing ITK-028 next
 - `docs/critical_todo.md` ✅ exists and still has no open critical items
-- `docs/ai_todo.md` ✅ exists and needed refresh because it still listed ITK-026 as open even though `tests/test_cli_helpers.py` now exists and `docs/status.md` marks that work done
-- `docs/deep_research_auto.md` ✅ exists for deeper context if needed later
+- `docs/ai_todo.md` ✅ exists and needed refresh because its active queue still mixed a completed item (ITK-027) into the open-priority block and its repo-fact snapshot was one maintenance pass behind
+- `docs/deep_research_auto.md` ✅ exists and was refreshed to match the current queue
 - Current repo facts from this maintenance pass:
-  - dedicated golden/contract fixtures already exist for `parse`, `summary`, `timeline`, and `runbook`
-  - focused helper suites now exist for shared evidence logic (`tests/test_evidence.py`) and shared CLI helper logic (`tests/test_cli_helpers.py`)
-  - `triage_toolkit/redaction.py` exists, but there is still no focused `tests/test_redaction.py`
-  - there is still no dedicated cross-surface parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
-  - parser coverage exists in `tests/test_parser.py`, but some provenance/diagnostic/source-order helper behaviors are still protected mainly through broader command tests
-  - latest recorded verification in `docs/status.md` is `make test` ✅ (`125 passed`)
-- Highest-leverage remaining gaps after this refresh:
-  - regex-heavy redaction behavior is still validated mostly through end-to-end assertions instead of a focused helper suite
-  - cross-command parity still depends on separate test modules rather than one fixture-driven contract
-  - parser helper invariants around provenance and dropped-line diagnostics are not yet locked as directly as the other shared layers
-  - full redacted output surfaces are not yet frozen with golden fixtures
+  - dedicated helper suites already exist for shared CLI plumbing, evidence logic, and redaction behavior (`tests/test_cli_helpers.py`, `tests/test_evidence.py`, `tests/test_redaction.py`)
+  - dedicated contract/golden coverage already exists for the current non-redacted `parse`, `summary`, `timeline`, and `runbook` surfaces
+  - there is still no dedicated cross-surface parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice (`tests/test_output_parity.py` is still missing)
+  - parser coverage exists in `tests/test_parser.py`, but some provenance/diagnostic/source-order helper invariants are still protected mainly through broader command tests
+  - full redacted output surfaces are still not frozen with dedicated golden fixtures
+  - latest recorded verification in `docs/status.md` is `make test` ✅ (`130 passed`)
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-027 (P1): Add direct unit coverage for shared redaction helpers and placeholder stability
-  - Why (impact): `triage_toolkit/redaction.py` feeds parse diagnostics and the redacted timeline/runbook surfaces. Because the implementation is regex-heavy and order-sensitive, a subtle change can silently alter what operators redact or leak without tripping a narrowly targeted test.
-  - DoD:
-    - Add `tests/test_redaction.py` covering deterministic placeholder reuse for emails, IPv4/IPv6 values, UUIDs, correlation/request/trace IDs, JWTs, and long token-like secrets.
-    - Lock the current false-positive boundaries so all-digit and all-alpha long tokens are not redacted as secrets, while mixed long tokens still are.
-    - Cover replacement ordering so keyed IDs preserve their key names (for example `cid=` / `trace_id=`) and values are not double-redacted.
-  - Verification:
-    - `pytest -q tests/test_redaction.py`
-    - `pytest -q tests/test_cli.py -k "redact or diagnostics"`
-    - `make test`
-
-- [ ] ITK-028 (P2): Add a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
-  - Why (impact): the repo now relies on shared evidence/filtering helpers across multiple output surfaces. Individual command tests can all pass while counts, signatures, source-ranking, or incident-window boundaries drift subtly across surfaces. One parity suite would catch that class of regression faster.
+- [ ] ITK-028 (P1): Add a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
+  - Why (impact): the repo now relies on shared evidence/filtering helpers across multiple output surfaces. Individual command tests can all pass while counts, signatures, source-ranking, or incident-window boundaries drift subtly across surfaces. One parity suite would catch that regression class faster.
   - DoD:
     - Add a dedicated parity test module (for example `tests/test_output_parity.py`) that runs the same multi-input fixture through `summary`, `timeline`, and `runbook`.
     - Assert the same filtered slice yields matching evidence counts, top signature ordering, source concentration ordering, and first/last observed timestamps across all three outputs.
@@ -72,6 +56,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-027 (P1): Add direct unit coverage for shared redaction helpers and placeholder stability
 - [x] ITK-026 (P1): Add direct unit coverage for shared CLI ingestion, strict-gate, filter, and write-path helpers
 - [x] ITK-025 (P1): Add direct unit coverage for shared evidence and ranking helpers
 - [x] ITK-024 (P1): Add dedicated golden/contract coverage for the summary JSON automation surface
