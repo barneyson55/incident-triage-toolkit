@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from triage_toolkit.parser import parse_file_with_summary, parse_line
+from triage_toolkit.parser import parse_file_with_summary, parse_line, parse_lines_with_summary
 from triage_toolkit.timeline import build_timeline
 
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
@@ -55,6 +55,55 @@ def test_timeline_filtered_subset_preserves_stable_order_for_tied_timestamps():
     worker_index = timeline.find("| 2025-01-01T00:00:02+00:00 | n/a | ERROR | worker | timeout cid=c-2 |")
     api_index = timeline.find("| 2025-01-01T00:00:02+00:00 | n/a | ERROR | api | timeout cid=c-2 |")
     assert 0 <= worker_index < api_index
+
+
+def test_timeline_deterministic_filtered_slice_uses_explicit_source_order_for_same_timestamp_multi_input(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text(
+        "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2\n",
+        encoding="utf-8",
+    )
+    source_b.write_text(
+        "2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2\n",
+        encoding="utf-8",
+    )
+
+    events_a, _ = parse_file_with_summary(source_a, source_order=0)
+    events_b, _ = parse_file_with_summary(source_b, source_order=1)
+    filtered = [event for event in (events_b + events_a) if event.correlation_id == "c-2"]
+
+    timeline = build_timeline(filtered)
+
+    api_index = timeline.find(f"| 2025-01-01T00:00:02+00:00 | {source_a}:1 | ERROR | api | timeout cid=c-2 |")
+    worker_index = timeline.find(
+        f"| 2025-01-01T00:00:02+00:00 | {source_b}:1 | ERROR | worker | timeout cid=c-2 |"
+    )
+    assert 0 <= api_index < worker_index
+
+
+def test_timeline_deterministic_filtered_slice_uses_explicit_source_order_for_same_timestamp_file_and_stdin(tmp_path):
+    source_file = tmp_path / "file.log"
+    source_file.write_text(
+        "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2\n",
+        encoding="utf-8",
+    )
+
+    file_events, _ = parse_file_with_summary(source_file, source_order=0)
+    stdin_events, _ = parse_lines_with_summary(
+        ["2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2"],
+        source_path="-",
+        source_order=1,
+    )
+    filtered = [event for event in (stdin_events + file_events) if event.correlation_id == "c-2"]
+
+    timeline = build_timeline(filtered)
+
+    file_index = timeline.find(
+        f"| 2025-01-01T00:00:02+00:00 | {source_file}:1 | ERROR | api | timeout cid=c-2 |"
+    )
+    stdin_index = timeline.find("| 2025-01-01T00:00:02+00:00 | -:1 | ERROR | worker | timeout cid=c-2 |")
+    assert 0 <= file_index < stdin_index
 
 
 def test_timeline_surfaces_source_provenance_in_event_rows(tmp_path):

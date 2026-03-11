@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from triage_toolkit.parser import parse_file_with_summary, parse_line
+from triage_toolkit.parser import parse_file_with_summary, parse_line, parse_lines_with_summary
 from triage_toolkit.runbook import build_runbook
 
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
@@ -55,6 +55,63 @@ def test_runbook_filtered_subset_uses_filtered_first_observed_and_counts():
     assert "- Evidence events: 2 of 2 total" in runbook
     assert "- Suspected components: api (1), worker (1)" in runbook
     assert "- Representative correlation IDs: `c-2`" in runbook
+
+
+def test_runbook_filtered_slice_uses_explicit_source_order_for_same_timestamp_multi_input(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_a.write_text(
+        "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2\n",
+        encoding="utf-8",
+    )
+    source_b.write_text(
+        "2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2\n",
+        encoding="utf-8",
+    )
+
+    events_a, _ = parse_file_with_summary(source_a, source_order=0)
+    events_b, _ = parse_file_with_summary(source_b, source_order=1)
+    filtered = [event for event in (events_b + events_a) if event.correlation_id == "c-2"]
+
+    runbook = build_runbook(filtered, "Incident: Filtered Multi")
+
+    api_index = runbook.find(
+        f"- timeout cid=<id> (count: 2, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:02+00:00, components: api, worker, example: `{source_a}:1`)"
+    )
+    api_example_index = runbook.find(
+        f"- `2025-01-01T00:00:02+00:00` `ERROR` `api` — timeout cid=c-2 (source: `{source_a}:1`)"
+    )
+    assert api_index != -1
+    assert api_example_index != -1
+    assert f"(source: `{source_b}:1`)" not in runbook
+
+
+def test_runbook_filtered_slice_uses_explicit_source_order_for_same_timestamp_file_and_stdin(tmp_path):
+    source_file = tmp_path / "file.log"
+    source_file.write_text(
+        "2025-01-01T00:00:02Z ERROR api: timeout cid=c-2\n",
+        encoding="utf-8",
+    )
+
+    file_events, _ = parse_file_with_summary(source_file, source_order=0)
+    stdin_events, _ = parse_lines_with_summary(
+        ["2025-01-01T00:00:02Z ERROR worker: timeout cid=c-2"],
+        source_path="-",
+        source_order=1,
+    )
+    filtered = [event for event in (stdin_events + file_events) if event.correlation_id == "c-2"]
+
+    runbook = build_runbook(filtered, "Incident: Filtered Stdin")
+
+    assert (
+        f"- timeout cid=<id> (count: 2, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:02+00:00, components: api, worker, example: `{source_file}:1`)"
+        in runbook
+    )
+    file_index = runbook.find(
+        f"- `2025-01-01T00:00:02+00:00` `ERROR` `api` — timeout cid=c-2 (source: `{source_file}:1`)"
+    )
+    assert file_index != -1
+    assert "(source: `-:1`)" not in runbook
 
 
 def test_runbook_evidence_sections_are_deterministic_and_use_earliest_example_per_signature():

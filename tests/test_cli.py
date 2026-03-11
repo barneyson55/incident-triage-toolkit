@@ -421,7 +421,7 @@ def test_parse_utf8_decode_error(tmp_path):
 def test_parse_permission_error(monkeypatch, tmp_path):
     sample = tmp_path / "sample.log"
 
-    def _raise_permission(_path):
+    def _raise_permission(_path, **_kwargs):
         raise PermissionError("denied")
 
     monkeypatch.setattr(cli_module, "parse_file_with_summary", _raise_permission)
@@ -435,7 +435,7 @@ def test_parse_permission_error(monkeypatch, tmp_path):
 def test_parse_generic_read_os_error(monkeypatch, tmp_path):
     sample = tmp_path / "sample.log"
 
-    def _raise_os_error(_path):
+    def _raise_os_error(_path, **_kwargs):
         raise OSError("i/o exploded")
 
     monkeypatch.setattr(cli_module, "parse_file_with_summary", _raise_os_error)

@@ -63,8 +63,10 @@ triage runbook logs/api.log logs/web.log --out runbook.md --title "Incident: 202
 
 Deterministic ordering contract:
 1. Canonical UTC timestamp ascending (`events[*].timestamp`).
-2. If timestamps tie, earlier CLI input path wins.
-3. If still tied, original line order inside that source file wins.
+2. If timestamps tie, earlier CLI input position wins (including `-` for stdin when present).
+3. If still tied, original line order inside that source wins.
+
+That same tie-break metadata is carried through the shared ordering helpers used by `summary`, `timeline`, and `runbook`, so filtered slices preserve the same CLI/source ordering instead of relying on Python's stable sort alone.
 
 For multi-input `triage parse`, `parse_summary` includes aggregate counters plus
 `per_source` (ordered exactly as CLI inputs), each with the same summary fields

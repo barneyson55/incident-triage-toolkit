@@ -30,8 +30,29 @@ class SourceEvidence:
     first_seen: datetime
 
 
+def _source_tie_break_key(event: LogEvent) -> tuple[int, int | str]:
+    if event.source_order is not None:
+        return (0, event.source_order)
+    if event.source_path is not None:
+        return (1, event.source_path)
+    return (2, "")
+
+
 def order_events(events: list[LogEvent]) -> list[LogEvent]:
-    return sorted(events, key=lambda event: event.timestamp)
+    """Sort by canonical UTC timestamp, then source tie-break metadata, then line order."""
+    return [
+        event
+        for _, event in sorted(
+            enumerate(events),
+            key=lambda item: (
+                item[1].timestamp,
+                *_source_tie_break_key(item[1]),
+                0 if item[1].line_number is not None else 1,
+                item[1].line_number if item[1].line_number is not None else 0,
+                item[0],
+            ),
+        )
+    ]
 
 
 def is_error(event: LogEvent) -> bool:

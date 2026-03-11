@@ -2,58 +2,45 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-11 16:58 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-11 18:02 UTC):
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `make test` ✅ (98 passed)
-- `docs/status.md` ✅ confirms ITK-021 is complete and ITK-022 is partially shipped (`summary` JSON now exposes `evidence_by_source`)
+- `make test` ✅ (`102 passed`)
+- `docs/status.md` ✅ confirms ITK-022 is complete and explicitly queues ITK-023 next
 - `docs/critical_todo.md` ✅ exists and has no open critical items
 - Highest-leverage remaining gaps after the latest verification:
-  - per-source evidence concentration is now visible in `triage summary`, but timeline/runbook still do not summarize which source dominates the incident slice
-  - equal-timestamp determinism in shared helpers is still partly implicit and currently leans on Python stable-sort behavior plus caller-preserved order
-  - the summary JSON automation surface is richer (`schema_version: 1.1.0`) but still lacks dedicated golden/contract locking before further output expansion
+  - `triage summary` is now a versioned automation surface, but it still lacks dedicated golden/contract fixtures of its own
+  - shared evidence/ranking semantics are still protected mostly indirectly via CLI/timeline/runbook tests, which makes regressions slower to localize
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-022 (P1): Finish per-source evidence concentration in timeline and runbook output
-  - Why (impact): successful-event provenance is already shipped and `triage summary` already exposes `evidence_by_source`, but the two human-readable handoff surfaces still make operators infer source dominance manually.
-  - DoD:
-    - Add concise per-source evidence callouts to timeline and runbook using the same source labels and evidence semantics already used by `summary`.
-    - Keep deterministic source ordering aligned with the current summary contract: `count DESC`, then earliest evidence timestamp, then source label text.
-    - Preserve existing filters, redaction behavior, UTC rendering, and event/example ordering.
-    - Update README and regression coverage for the new source-focused output sections.
-  - Verification:
-    - `pytest -q tests/test_timeline.py -k "source"`
-    - `pytest -q tests/test_runbook.py -k "source"`
-    - `pytest -q tests/test_cli.py -k "summary and source"`
-    - `make test`
-
-- [ ] ITK-023 (P1): Make equal-timestamp determinism explicit across shared ordering helpers
-  - Why (impact): `triage_toolkit/evidence.py` still re-sorts events by timestamp only, so downstream determinism depends on Python stable sort and callers already preserving CLI merge order. That works today, but it is an implicit implementation detail rather than an explicit product contract.
-  - DoD:
-    - Centralize one explicit same-timestamp ordering contract for parse/timeline/runbook/evidence helper paths.
-    - Preserve the documented merge semantics end-to-end: canonical UTC timestamp, then CLI input order (including `-`), then original line order within the source.
-    - Add regression cases for multi-file and file+stdin same-timestamp incidents, including filtered slices.
-    - Document the explicit tie-break contract in README.
-  - Verification:
-    - `pytest -q tests/test_cli.py -k "stdin or tied or order"`
-    - `pytest -q tests/test_timeline.py -k "order or deterministic"`
-    - `pytest -q tests/test_runbook.py -k "order or deterministic"`
-    - `make test`
-
 - [ ] ITK-024 (P2): Add dedicated golden/contract coverage for the summary JSON automation surface
-  - Why (impact): `triage summary` is now the main machine-readable handoff surface for automation and already carries `evidence_by_source`, but unlike parse/timeline/runbook it still lacks dedicated golden fixtures that make contract drift obvious in review.
+  - Why (impact): `triage summary` is now the main machine-readable handoff surface and already carries `schema_version: "1.1.0"` plus `evidence_by_source`, but unlike parse/timeline/runbook it still lacks dedicated fixtures that make contract drift obvious in review.
   - DoD:
-    - Add dedicated summary contract/golden tests for single-input, multi-input, stdin-label, and empty/filter-miss cases.
-    - Lock the current `schema_version`, output shape, and deterministic ordering for `incident_window`, `top_components`, `top_error_signatures`, `evidence_by_source`, `correlation_id_coverage`, and `parse_summary`.
-    - Update README examples only if the locked summary contract changes deliberately.
+    - Add `tests/test_summary_contract.py` plus focused golden fixtures for single-input, multi-input, stdin-label, and empty/filter-miss summary outputs.
+    - Lock the current summary contract for `schema_version`, `incident_window`, `event_count`, `error_count`, `top_components`, `top_error_signatures`, `evidence_by_source`, `correlation_id_coverage`, and `parse_summary`.
+    - Keep fixture updates deliberate: any intentional contract change must update tests and README together.
   - Verification:
-    - `pytest -q tests/test_cli.py -k "summary and (schema or contract or golden)"`
+    - `pytest -q tests/test_summary_contract.py`
+    - `pytest -q tests/test_cli.py -k "summary"`
+    - `make test`
+
+- [ ] ITK-025 (P2): Add direct unit coverage for shared evidence and ranking helpers
+  - Why (impact): `triage_toolkit/evidence.py` now drives summary, timeline, and runbook behavior, but most protection is still indirect through higher-level outputs. A small helper regression can therefore break several surfaces at once while making root cause slower to pinpoint.
+  - DoD:
+    - Add `tests/test_evidence.py` covering `is_error`, `order_events`, signature normalization/ranking, source-evidence ranking, and representative correlation-ID selection.
+    - Include tied-timestamp cases that prove helper-level ordering stays aligned with the CLI determinism contract.
+    - Cover redaction-aware signature rendering without duplicating full markdown/JSON golden payloads.
+  - Verification:
+    - `pytest -q tests/test_evidence.py`
+    - `pytest -q tests/test_cli.py -k "summary or redact"`
     - `make test`
 
 ---
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-023 (P1): Make equal-timestamp determinism explicit across shared ordering helpers
+- [x] ITK-022 (P1): Finish per-source evidence concentration in timeline and runbook output
 - [x] ITK-021 (P1): Add deterministic redaction controls for diagnostics and evidence surfaces
 - [x] ITK-020 (P1): Preserve source provenance for successful parsed events and rendered evidence
 - [x] ITK-019 (P1): Unify incident evidence semantics across `summary`, `timeline`, and `runbook`

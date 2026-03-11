@@ -197,6 +197,7 @@ def parse_lines_with_summary(
     lines: Iterable[str],
     *,
     source_path: str = "<memory>",
+    source_order: int | None = None,
     diagnostics_limit: int = 0,
 ) -> tuple[list[LogEvent], dict[str, Any]]:
     events: list[LogEvent] = []
@@ -208,7 +209,14 @@ def parse_lines_with_summary(
         total_lines += 1
         event, drop_reason = parse_line_with_reason(line)
         if event:
-            events.append(replace(event, source_path=source_path, line_number=total_lines))
+            events.append(
+                replace(
+                    event,
+                    source_path=source_path,
+                    line_number=total_lines,
+                    source_order=source_order,
+                )
+            )
         else:
             reason = drop_reason or _DROP_UNKNOWN
             dropped_reasons[reason] += 1
@@ -240,12 +248,14 @@ def _iter_file_lines(path: Path) -> Iterator[str]:
 def parse_file_with_summary(
     path: str | Path,
     *,
+    source_order: int | None = None,
     diagnostics_limit: int = 0,
 ) -> tuple[list[LogEvent], dict[str, Any]]:
     path = Path(path)
     return parse_lines_with_summary(
         _iter_file_lines(path),
         source_path=str(path),
+        source_order=source_order,
         diagnostics_limit=diagnostics_limit,
     )
 

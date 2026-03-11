@@ -10,7 +10,7 @@ from typing import Any, NoReturn
 import typer
 
 from . import __version__
-from .evidence import error_events, evidence_by_source, top_error_signatures
+from .evidence import error_events, evidence_by_source, order_events, top_error_signatures
 from .parser import parse_file, parse_file_with_summary, parse_lines_with_summary
 from .redaction import redact_text
 from .runbook import build_runbook
@@ -72,12 +72,17 @@ def _read_events(path: Path):
 def _read_events_with_summary(
     path: Path,
     *,
+    source_order: int | None = None,
     diagnostics_limit: int = 0,
 ) -> tuple[list[Any], dict[str, Any]]:
     try:
         if diagnostics_limit > 0:
-            return parse_file_with_summary(path, diagnostics_limit=diagnostics_limit)
-        return parse_file_with_summary(path)
+            return parse_file_with_summary(
+                path,
+                source_order=source_order,
+                diagnostics_limit=diagnostics_limit,
+            )
+        return parse_file_with_summary(path, source_order=source_order)
     except FileNotFoundError:
         _fail(f"Input file not found: {path}")
     except PermissionError:
@@ -99,13 +104,19 @@ def _read_stdin_lines() -> list[str]:
 
 def _read_events_from_stdin(
     *,
+    source_order: int | None = None,
     diagnostics_limit: int = 0,
 ) -> tuple[list[Any], dict[str, Any]]:
     try:
         lines = _read_stdin_lines()
     except UnicodeDecodeError:
         _fail("Standard input is not valid UTF-8 text.")
-    return parse_lines_with_summary(lines, source_path="-", diagnostics_limit=diagnostics_limit)
+    return parse_lines_with_summary(
+        lines,
+        source_path="-",
+        source_order=source_order,
+        diagnostics_limit=diagnostics_limit,
+    )
 
 
 def _merge_parse_summaries(summaries: list[dict[str, Any]]) -> dict[str, Any]:
@@ -140,17 +151,24 @@ def _read_events_for_parse(
     if source_labels.count("-") > 1:
         _fail("Standard input source '-' may be specified at most once.")
 
-    merged_events: list[tuple[Any, int, int]] = []
+    merged_events: list[Any] = []
     per_source: list[dict[str, Any]] = []
     dropped_line_diagnostics: list[dict[str, Any]] = []
     remaining_diagnostics = diagnostics_limit
 
     for source_index, (path, source_label) in enumerate(zip(paths, source_labels, strict=True)):
         if source_label == "-":
-            events, summary = _read_events_from_stdin(diagnostics_limit=remaining_diagnostics)
+            events, summary = _read_events_from_stdin(
+                source_order=source_index,
+                diagnostics_limit=remaining_diagnostics,
+            )
         else:
-            events, summary = _read_events_with_summary(path, diagnostics_limit=remaining_diagnostics)
-        merged_events.extend((event, source_index, event_index) for event_index, event in enumerate(events))
+            events, summary = _read_events_with_summary(
+                path,
+                source_order=source_index,
+                diagnostics_limit=remaining_diagnostics,
+            )
+        merged_events.extend(events)
 
         source_summary = dict(summary)
         source_diagnostics = source_summary.pop("dropped_line_diagnostics", [])
@@ -159,8 +177,7 @@ def _read_events_for_parse(
 
         per_source.append({"path": source_label, **source_summary})
 
-    merged_events.sort(key=lambda item: (item[0].timestamp, item[1], item[2]))
-    all_events = [item[0] for item in merged_events]
+    all_events = order_events(merged_events)
 
     aggregate = _merge_parse_summaries(per_source)
     if diagnostics_limit > 0:

@@ -17,6 +17,7 @@ class LogEvent:
     source_offset: str | None = None
     source_path: str | None = None
     line_number: int | None = None
+    source_order: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

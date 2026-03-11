@@ -9,6 +9,22 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-023 completed (equal-timestamp determinism is now explicit across parse + helper paths):
+  - `triage_toolkit/models.py` now carries an internal `source_order` field on `LogEvent`, so multi-input CLI ingestion can preserve explicit source-position metadata without changing the public JSON contract.
+  - `triage_toolkit/parser.py`, `triage_toolkit/cli.py`, and `triage_toolkit/evidence.py` now propagate that source-order metadata from multi-file/stdin ingestion and use one shared `order_events(...)` tie-break path: UTC timestamp, then source order (or stable source label fallback), then original line number, then original iterable position.
+  - `tests/test_timeline.py` and `tests/test_runbook.py` now lock same-timestamp filtered-slice behavior for both multi-file and file+stdin inputs, even when helper callers pass the events in reverse order.
+  - `tests/test_cli.py` was updated for the internal parser call-shape change, and `README.md` now says explicitly that filtered `summary`/`timeline`/`runbook` slices keep the CLI tie-break contract instead of depending on stable sort behavior.
+- Why:
+  - Deterministic same-timestamp ordering is now an explicit shared implementation detail rather than an accidental property of already-sorted caller input, which lowers regression risk across parse, summary, timeline, and runbook surfaces.
+- Risks / follow-ups:
+  - The public parse/summary contracts are unchanged, but helper-level fallback ordering for events that do not carry CLI source metadata still uses stable source labels or original iterable position; dedicated helper unit coverage is still queued in ITK-025.
+  - Dedicated golden/contract tests for the summary JSON automation surface are still queued in ITK-024.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "same_timestamp or tied or stdin"` ✅ (10 passed)
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "ordering or deterministic"` ✅ (5 passed)
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "deterministic or filtered"` ✅ (6 passed)
+  - `make lint` ✅
+  - `make test` ✅ (106 passed)
 - ITK-022 completed (per-source evidence concentration now reaches all operator-facing outputs):
   - `triage_toolkit/timeline.py` now renders an `Evidence by Source` section using the shared evidence semantics and deterministic source ordering (`count DESC`, earliest evidence timestamp, source label text).
   - `triage_toolkit/runbook.py` now adds concise source-concentration callouts in both the Symptoms summary and the Evidence section, without changing UTC rendering, filters, redaction behavior, or representative-example ordering.
@@ -44,4 +60,4 @@
   - `make test` ✅ (97 passed)
 
 ## Next
-- Start ITK-023 by making equal-timestamp determinism explicit across shared ordering helpers.
+- Start ITK-024 by adding dedicated golden/contract coverage for the summary JSON automation surface.
