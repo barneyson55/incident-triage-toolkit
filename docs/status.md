@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-027 completed (shared redaction helpers now have direct unit coverage):
+  - Added `tests/test_redaction.py` with focused helper coverage for deterministic identifier placeholder generation, email/IPv4/IPv6 placeholder reuse, keyed identifier ordering (`cid=` / `trace_id=` / `request_id=`), JWT and mixed-token secret redaction, and the documented false-positive boundaries for standalone long tokens.
+  - Locked ordering-sensitive behavior where keyed identifiers are rewritten to `[redacted-id:...]` before broader UUID/JWT/secret passes, so key names stay intact and sensitive values are not double-redacted.
+  - Kept the change surface minimal: no production code or public contract changes were needed because the existing redaction helpers already matched the intended behavior.
+- Why:
+  - `triage_toolkit/redaction.py` is shared by parse diagnostics plus the redacted timeline/runbook surfaces, so direct helper tests make regex/order regressions easier to isolate than broader CLI failures alone.
+- Risks / follow-ups:
+  - Cross-surface filtered-output parity is still queued next in ITK-028.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_redaction.py` ✅ (5 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "redact or diagnostics"` ✅ (3 passed)
+  - `make lint` ✅
+  - `make test` ✅ (130 passed)
 - ITK-026 completed (shared CLI ingestion/filter/strict-gate/write helpers now have direct unit coverage):
   - Added `tests/test_cli_helpers.py` with focused helper coverage for `_merge_parse_summaries`, `_apply_event_filters`, `_strict_parse_error`, `_read_events_for_parse`, and `_write_output`.
   - Locked helper-level expectations for aggregate drop-ratio rounding, repeated-flag OR semantics plus cross-filter AND semantics, strict-gate failure messaging, bounded dropped-line diagnostics carry-forward across file/stdin ingestion, duplicate-stdin rejection, and parent-directory creation for file outputs.
@@ -99,4 +112,4 @@
   - `make test` ✅ (97 passed)
 
 ## Next
-- Start ITK-027 by adding direct unit coverage for shared redaction helpers and placeholder stability.
+- Start ITK-028 by adding a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice.

@@ -2,50 +2,28 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo verification (2026-03-11 21:20 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-11 22:27 UTC):
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `make test` ✅ (`118 passed`)
-- `docs/status.md` ✅ exists and confirms ITK-025 is complete while explicitly queuing ITK-026 next
-- `docs/critical_todo.md` ✅ exists and has no open critical items
+- `docs/status.md` ✅ exists and records ITK-026 as complete while explicitly queuing ITK-027 next
+- `docs/critical_todo.md` ✅ exists and still has no open critical items
+- `docs/ai_todo.md` ✅ exists and needed refresh because it still listed ITK-026 as open even though `tests/test_cli_helpers.py` now exists and `docs/status.md` marks that work done
+- `docs/deep_research_auto.md` ✅ exists for deeper context if needed later
 - Current repo facts from this maintenance pass:
-  - dedicated golden fixtures exist for `parse`, `summary`, `timeline`, and `runbook`
-  - focused helper coverage exists for `triage_toolkit/evidence.py` in `tests/test_evidence.py`
-  - parser coverage already exists in `tests/test_parser.py`, but some parser helper/builder behaviors are still validated only indirectly
-  - there is still no focused `tests/test_cli_helpers.py`
-  - there is still no focused `tests/test_redaction.py`
-  - there is still no dedicated cross-surface parity suite that proves `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
-  - current redaction coverage is strong on targeted assertions, but not yet locked with full redacted golden outputs
-- Highest-leverage remaining gaps after the latest verification:
-  - shared CLI ingestion/filter/strict-gate plumbing is still protected mostly through broader command tests
-  - regex-heavy redaction behavior is exercised end-to-end, but not yet locked with a focused helper suite
-  - cross-command output parity still depends on separate assertions instead of one shared fixture-driven contract
+  - dedicated golden/contract fixtures already exist for `parse`, `summary`, `timeline`, and `runbook`
+  - focused helper suites now exist for shared evidence logic (`tests/test_evidence.py`) and shared CLI helper logic (`tests/test_cli_helpers.py`)
+  - `triage_toolkit/redaction.py` exists, but there is still no focused `tests/test_redaction.py`
+  - there is still no dedicated cross-surface parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
+  - parser coverage exists in `tests/test_parser.py`, but some provenance/diagnostic/source-order helper behaviors are still protected mainly through broader command tests
+  - latest recorded verification in `docs/status.md` is `make test` ✅ (`125 passed`)
+- Highest-leverage remaining gaps after this refresh:
+  - regex-heavy redaction behavior is still validated mostly through end-to-end assertions instead of a focused helper suite
+  - cross-command parity still depends on separate test modules rather than one fixture-driven contract
+  - parser helper invariants around provenance and dropped-line diagnostics are not yet locked as directly as the other shared layers
   - full redacted output surfaces are not yet frozen with golden fixtures
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-025 (P1): Add direct unit coverage for shared evidence and ranking helpers
-  - Why (impact): `triage_toolkit/evidence.py` now drives summary, timeline, and runbook behavior. A small helper regression can therefore break several surfaces at once while only failing through higher-level tests, which makes root cause slower to pinpoint.
-  - DoD:
-    - Add `tests/test_evidence.py` covering `is_error`, `order_events`, signature normalization/ranking, source-evidence ranking, component ranking, and representative correlation-ID selection.
-    - Include tied-timestamp cases that prove helper-level ordering stays aligned with the documented CLI determinism contract.
-    - Cover redaction-aware signature rendering without duplicating full markdown/JSON golden payloads.
-  - Verification:
-    - `pytest -q tests/test_evidence.py`
-    - `pytest -q tests/test_cli.py -k "summary or redact or deterministic"`
-    - `make test`
-
-- [x] ITK-026 (P1): Add direct unit coverage for shared CLI ingestion, strict-gate, filter, and write-path helpers
-  - Why (impact): `triage_toolkit/cli.py` owns parse-summary aggregation, diagnostics-budget carry-forward, strict parse gating, reusable event-slice filters, and the shared stdout/file write path for every command. Those rules are critical, but most failures still surface first through broader command tests.
-  - DoD:
-    - Add `tests/test_cli_helpers.py` covering `_merge_parse_summaries`, `_apply_event_filters`, `_strict_parse_error`, `_read_events_for_parse`, and `_write_output`.
-    - Lock repeated-flag OR semantics, cross-filter AND semantics, aggregate drop-ratio rounding, bounded diagnostics carry-forward, duplicate-stdin rejection, and parent-directory creation for file outputs.
-    - Keep helper expectations aligned with the public CLI/README contract rather than inventing a separate private contract.
-  - Verification:
-    - `pytest -q tests/test_cli_helpers.py`
-    - `pytest -q tests/test_cli.py -k "strict or filter or diagnostics or per_source or write"`
-    - `make test`
-
-- [ ] ITK-027 (P1): Add direct unit coverage for shared redaction helpers and placeholder stability
+- [x] ITK-027 (P1): Add direct unit coverage for shared redaction helpers and placeholder stability
   - Why (impact): `triage_toolkit/redaction.py` feeds parse diagnostics and the redacted timeline/runbook surfaces. Because the implementation is regex-heavy and order-sensitive, a subtle change can silently alter what operators redact or leak without tripping a narrowly targeted test.
   - DoD:
     - Add `tests/test_redaction.py` covering deterministic placeholder reuse for emails, IPv4/IPv6 values, UUIDs, correlation/request/trace IDs, JWTs, and long token-like secrets.
@@ -57,7 +35,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo v
     - `make test`
 
 - [ ] ITK-028 (P2): Add a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
-  - Why (impact): the repo now relies on shared evidence/filtering helpers across multiple output surfaces. Individual command tests can all pass while counts, signatures, or source-ranking drift subtly across surfaces. One parity suite would catch that class of regression faster.
+  - Why (impact): the repo now relies on shared evidence/filtering helpers across multiple output surfaces. Individual command tests can all pass while counts, signatures, source-ranking, or incident-window boundaries drift subtly across surfaces. One parity suite would catch that class of regression faster.
   - DoD:
     - Add a dedicated parity test module (for example `tests/test_output_parity.py`) that runs the same multi-input fixture through `summary`, `timeline`, and `runbook`.
     - Assert the same filtered slice yields matching evidence counts, top signature ordering, source concentration ordering, and first/last observed timestamps across all three outputs.
@@ -94,15 +72,17 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo v
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-026 (P1): Add direct unit coverage for shared CLI ingestion, strict-gate, filter, and write-path helpers
+- [x] ITK-025 (P1): Add direct unit coverage for shared evidence and ranking helpers
 - [x] ITK-024 (P1): Add dedicated golden/contract coverage for the summary JSON automation surface
 - [x] ITK-023 (P1): Make equal-timestamp determinism explicit across shared ordering helpers
 - [x] ITK-022 (P1): Finish per-source evidence concentration in timeline and runbook output
 - [x] ITK-021 (P1): Add deterministic redaction controls for diagnostics and evidence surfaces
 - [x] ITK-020 (P1): Preserve source provenance for successful parsed events and rendered evidence
 - [x] ITK-019 (P1): Unify incident evidence semantics across `summary`, `timeline`, and `runbook`
+- [x] ITK-018 (P1): Support stdin ingestion (`-`) across CLI commands
 - [x] ITK-017 (P1): Make runbook output evidence-driven instead of mostly boilerplate
 - [x] ITK-016 (P1): Finish deterministic incident-slicing filter parity for `timeline` and `runbook`
-- [x] ITK-018 (P1): Support stdin ingestion (`-`) across CLI commands
 
 Completed foundation (kept brief for history):
 
