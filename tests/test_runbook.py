@@ -120,6 +120,33 @@ def test_runbook_uses_shared_incident_evidence_rules_for_critical_fatal_and_mess
     assert "- `2025-01-01T00:00:04+00:00` `INFO` `web` — upstream error on request 99 (source: `n/a`)" in runbook
 
 
+def test_runbook_surfaces_ranked_evidence_by_source(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_c = tmp_path / "c.log"
+    source_a.write_text(
+        "2025-01-01T00:00:01Z ERROR api: failed-a-1\n2025-01-01T00:00:04Z ERROR api: failed-a-2\n",
+        encoding="utf-8",
+    )
+    source_b.write_text("2025-01-01T00:00:02Z ERROR db: failed-b\n", encoding="utf-8")
+    source_c.write_text("2025-01-01T00:00:02Z ERROR worker: failed-c\n", encoding="utf-8")
+
+    events_a, _ = parse_file_with_summary(source_a)
+    events_b, _ = parse_file_with_summary(source_b)
+    events_c, _ = parse_file_with_summary(source_c)
+    runbook = build_runbook(events_a + events_c + events_b, "Incident: Sources")
+
+    assert (
+        f"- Evidence by source: `{source_a}` (2 of 4), `{source_b}` (1 of 4), `{source_c}` (1 of 4)"
+        in runbook
+    )
+    assert "### Evidence by Source" in runbook
+    first = runbook.index(f"- `{source_a}` (evidence: 2 of 4, first: 2025-01-01T00:00:01+00:00)")
+    second = runbook.index(f"- `{source_b}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    third = runbook.index(f"- `{source_c}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    assert first < second < third
+
+
 def test_runbook_redaction_masks_signatures_examples_and_correlation_ids_deterministically():
     lines = [
         (

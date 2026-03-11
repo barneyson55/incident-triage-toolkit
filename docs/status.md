@@ -9,20 +9,22 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
-- ITK-022 progress (summary milestone: per-source evidence concentration is now exposed in the JSON surface):
-  - `triage_toolkit/evidence.py` now groups evidence events by stable source label and ranks sources deterministically by `count DESC`, earliest evidence timestamp, then source label text.
-  - `triage_toolkit/cli.py` now adds `evidence_by_source` to `triage summary` and bumps the summary schema to `1.1.0` for the additive contract change.
-  - `tests/test_cli.py` now locks single-input, multi-input, stdin-label, and filter/empty-slice behavior for `evidence_by_source`.
-  - `README.md` now documents the new summary field and its ordering contract.
+- ITK-022 completed (per-source evidence concentration now reaches all operator-facing outputs):
+  - `triage_toolkit/timeline.py` now renders an `Evidence by Source` section using the shared evidence semantics and deterministic source ordering (`count DESC`, earliest evidence timestamp, source label text).
+  - `triage_toolkit/runbook.py` now adds concise source-concentration callouts in both the Symptoms summary and the Evidence section, without changing UTC rendering, filters, redaction behavior, or representative-example ordering.
+  - `tests/test_timeline.py`, `tests/test_runbook.py`, and `tests/test_cli.py` now lock the new source-ranked output sections and ordering behavior.
+  - `tests/fixtures/golden/timeline_output.md` and `tests/fixtures/golden/runbook_output.md` now include the new source-focused sections.
+  - `README.md` now documents the timeline/runbook source-concentration surfaces alongside the existing summary contract.
 - Why:
-  - Automation and operators can now see which source dominates the evidence slice without manually inferring it from raw event provenance.
+  - Operators can now see which source dominates the incident evidence slice directly in timeline and runbook handoff artifacts, not just in the machine-readable summary JSON.
 - Risks / follow-ups:
-  - Timeline and runbook still need concise source callouts before ITK-022 is fully complete.
   - Equal-timestamp behavior is still partly implicit in shared ordering helpers and is queued next in ITK-023.
 - Verification run:
-  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary"` ✅ (13 passed)
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "source"` ✅ (2 passed)
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "source"` ✅ (2 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and source"` ✅ (4 passed)
   - `make lint` ✅
-  - `make test` ✅ (98 passed)
+  - `make test` ✅ (102 passed)
 - ITK-021 completed (deterministic redaction controls for diagnostics and evidence surfaces):
   - Added `triage_toolkit/redaction.py`, a shared render-time redaction helper that emits stable placeholders for emails, IPs, UUID/correlation-style identifiers, and long token-like secrets.
   - `triage_toolkit/cli.py` now supports opt-in `--redact` on `parse`, `timeline`, and `runbook`; parse redaction only rewrites `parse_summary.dropped_line_diagnostics[*].raw_line`, so raw event payloads, counters, and strict gates stay unchanged.
@@ -42,4 +44,4 @@
   - `make test` ✅ (97 passed)
 
 ## Next
-- Continue ITK-022 by surfacing concise per-source evidence callouts in timeline and runbook output.
+- Start ITK-023 by making equal-timestamp determinism explicit across shared ordering helpers.

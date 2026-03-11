@@ -6,6 +6,7 @@
 - Last observed: `2025-03-01T10:00:04+00:00`
 - Evidence events: 2 of 4 total
 - Top error signatures: `query failed cid=<id>` (1), `request # for user #` (1)
+- Evidence by source: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log` (2 of 2)
 - Suspected components: db (1), api (1)
 - Representative correlation IDs: `q-9`
 
@@ -14,6 +15,9 @@
 ### Top Error Signatures
 - query failed cid=<id> (count: 1, first: 2025-03-01T10:00:02+00:00, last: 2025-03-01T10:00:02+00:00, components: db, example: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:3`)
 - request # for user # (count: 1, first: 2025-03-01T10:00:04+00:00, last: 2025-03-01T10:00:04+00:00, components: api, example: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:5`)
+
+### Evidence by Source
+- `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log` (evidence: 2 of 2, first: 2025-03-01T10:00:02+00:00)
 
 ### Example Failures
 - `2025-03-01T10:00:02+00:00` `ERROR` `db` — query failed cid=q-9 (source: `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log:3`)

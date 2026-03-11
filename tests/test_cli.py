@@ -681,6 +681,55 @@ def test_summary_surfaces_stdin_label_in_evidence_by_source_and_uses_source_text
     ]
 
 
+def test_timeline_source_summary_surfaces_ranked_evidence_sources(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_c = tmp_path / "c.log"
+    source_a.write_text(
+        "2025-01-01T00:00:01Z ERROR api: failed-a-1\n2025-01-01T00:00:04Z ERROR api: failed-a-2\n",
+        encoding="utf-8",
+    )
+    source_b.write_text("2025-01-01T00:00:02Z ERROR db: failed-b\n", encoding="utf-8")
+    source_c.write_text("2025-01-01T00:00:02Z ERROR worker: failed-c\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["timeline", str(source_c), str(source_a), str(source_b), "--out", "-"])
+
+    assert result.exit_code == 0
+    assert "## Evidence by Source" in result.stdout
+    first = result.stdout.index(f"- `{source_a}` (evidence: 2 of 4, first: 2025-01-01T00:00:01+00:00)")
+    second = result.stdout.index(f"- `{source_b}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    third = result.stdout.index(f"- `{source_c}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    assert first < second < third
+
+
+def test_runbook_source_summary_surfaces_ranked_evidence_sources(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_c = tmp_path / "c.log"
+    source_a.write_text(
+        "2025-01-01T00:00:01Z ERROR api: failed-a-1\n2025-01-01T00:00:04Z ERROR api: failed-a-2\n",
+        encoding="utf-8",
+    )
+    source_b.write_text("2025-01-01T00:00:02Z ERROR db: failed-b\n", encoding="utf-8")
+    source_c.write_text("2025-01-01T00:00:02Z ERROR worker: failed-c\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["runbook", str(source_c), str(source_a), str(source_b), "--out", "-", "--title", "Incident: Sources"],
+    )
+
+    assert result.exit_code == 0
+    assert (
+        f"- Evidence by source: `{source_a}` (2 of 4), `{source_b}` (1 of 4), `{source_c}` (1 of 4)"
+        in result.stdout
+    )
+    assert "### Evidence by Source" in result.stdout
+    first = result.stdout.index(f"- `{source_a}` (evidence: 2 of 4, first: 2025-01-01T00:00:01+00:00)")
+    second = result.stdout.index(f"- `{source_b}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    third = result.stdout.index(f"- `{source_c}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    assert first < second < third
+
+
 def test_summary_multiple_inputs_strict_uses_aggregate_drop_ratio(tmp_path):
     source_a = tmp_path / "a.log"
     source_b = tmp_path / "b.log"

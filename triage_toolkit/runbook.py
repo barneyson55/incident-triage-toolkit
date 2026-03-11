@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .evidence import (
     build_signature_evidence,
+    build_source_evidence,
     component_counts,
     error_events,
     order_events,
@@ -42,6 +43,21 @@ def _format_signature_list(signatures, *, redact: bool = False) -> str:
     return ", ".join(f"`{_display_signature(item, redact=redact)}` ({item.count})" for item in signatures)
 
 
+def _format_source_summary(items, *, total_evidence_events: int) -> str:
+    if not items:
+        return "none"
+    return ", ".join(f"`{item.source}` ({item.count} of {total_evidence_events})" for item in items)
+
+
+def _format_source_evidence(item, *, total_evidence_events: int) -> str:
+    return "- `{}` (evidence: {} of {}, first: {})".format(
+        item.source,
+        item.count,
+        total_evidence_events,
+        item.first_seen.isoformat(),
+    )
+
+
 def _incident_window(ordered: list[LogEvent]) -> str:
     if not ordered:
         return "`n/a`"
@@ -58,6 +74,7 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     ordered = order_events(events)
     evidence_events = error_events(ordered)
     signatures = build_signature_evidence(ordered, limit=3)
+    source_evidence = build_source_evidence(ordered)
     top_components = component_counts(ordered, limit=3)
     correlation_ids = representative_correlation_ids(ordered, limit=3)
 
@@ -73,6 +90,7 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
         f"- Last observed: `{last_observed}`",
         f"- Evidence events: {len(evidence_events)} of {len(ordered)} total",
         f"- Top error signatures: {_format_signature_list(signatures, redact=redact)}",
+        f"- Evidence by source: {_format_source_summary(source_evidence, total_evidence_events=len(evidence_events))}",
         f"- Suspected components: {_format_component_counts(top_components)}",
         f"- Representative correlation IDs: {_format_correlation_ids(correlation_ids, redact=redact)}",
     ]
@@ -99,6 +117,13 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
                     _format_event_source(item.representative),
                 )
             )
+
+    lines.extend(["", "### Evidence by Source"])
+    if not source_evidence:
+        lines.append("- None detected in parsed input.")
+    else:
+        for item in source_evidence:
+            lines.append(_format_source_evidence(item, total_evidence_events=len(evidence_events)))
 
     lines.extend(["", "### Example Failures"])
     if not signatures:

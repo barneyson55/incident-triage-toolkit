@@ -89,6 +89,29 @@ def test_timeline_includes_critical_fatal_and_message_hint_events_in_shared_evid
     assert "- web (errors: 1)" in timeline
 
 
+def test_timeline_surfaces_ranked_evidence_by_source(tmp_path):
+    source_a = tmp_path / "a.log"
+    source_b = tmp_path / "b.log"
+    source_c = tmp_path / "c.log"
+    source_a.write_text(
+        "2025-01-01T00:00:01Z ERROR api: failed-a-1\n2025-01-01T00:00:04Z ERROR api: failed-a-2\n",
+        encoding="utf-8",
+    )
+    source_b.write_text("2025-01-01T00:00:02Z ERROR db: failed-b\n", encoding="utf-8")
+    source_c.write_text("2025-01-01T00:00:02Z ERROR worker: failed-c\n", encoding="utf-8")
+
+    events_a, _ = parse_file_with_summary(source_a)
+    events_b, _ = parse_file_with_summary(source_b)
+    events_c, _ = parse_file_with_summary(source_c)
+    timeline = build_timeline(events_a + events_c + events_b)
+
+    assert "## Evidence by Source" in timeline
+    first = timeline.index(f"- `{source_a}` (evidence: 2 of 4, first: 2025-01-01T00:00:01+00:00)")
+    second = timeline.index(f"- `{source_b}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    third = timeline.index(f"- `{source_c}` (evidence: 1 of 4, first: 2025-01-01T00:00:02+00:00)")
+    assert first < second < third
+
+
 def test_timeline_redaction_masks_rendered_messages_and_signatures_deterministically():
     lines = [
         (

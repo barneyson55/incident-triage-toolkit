@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .evidence import build_signature_evidence, component_counts, is_error, order_events, render_error_signature
+from .evidence import build_signature_evidence, build_source_evidence, component_counts, is_error, order_events, render_error_signature
 from .models import LogEvent
 from .redaction import redact_text
 
@@ -15,9 +15,18 @@ def _format_event_source(event: LogEvent) -> str:
     return f"{event.source_path}:{event.line_number}"
 
 
+def _format_source_evidence(item, *, total_evidence_events: int) -> str:
+    return "- `{}` (evidence: {} of {}, first: {})".format(
+        item.source,
+        item.count,
+        total_evidence_events,
+        item.first_seen.isoformat(),
+    )
+
+
 def build_timeline(events: list[LogEvent], *, redact: bool = False) -> str:
     if not events:
-        return """# Incident Timeline\n\nT0: `n/a`\n\n## Events\n\n_No events parsed._\n\n## Notable Errors\n\n- None detected in parsed input.\n\n## Suspected Components\n\n- No components inferred.\n"""
+        return """# Incident Timeline\n\nT0: `n/a`\n\n## Events\n\n_No events parsed._\n\n## Notable Errors\n\n- None detected in parsed input.\n\n## Evidence by Source\n\n- No source concentration inferred.\n\n## Suspected Components\n\n- No components inferred.\n"""
 
     ordered = order_events(events)
     t0 = ordered[0].timestamp
@@ -64,6 +73,13 @@ def build_timeline(events: list[LogEvent], *, redact: bool = False) -> str:
                     evidence.last_seen.isoformat(),
                 )
             )
+
+    lines.extend(["", "## Evidence by Source"])
+    if not errors:
+        lines.append("- No source concentration inferred.")
+    else:
+        for item in build_source_evidence(ordered):
+            lines.append(_format_source_evidence(item, total_evidence_events=len(errors)))
 
     lines.extend(["", "## Suspected Components"])
     if not errors:

@@ -15,6 +15,9 @@ T0: `2025-03-01T10:00:00+00:00`
 - query failed cid=<id> (count: 1, first: 2025-03-01T10:00:02+00:00, last: 2025-03-01T10:00:02+00:00)
 - request # for user # (count: 1, first: 2025-03-01T10:00:04+00:00, last: 2025-03-01T10:00:04+00:00)
 
+## Evidence by Source
+- `/home/node/.openclaw/workspace/projects/core/incident-triage-toolkit/tests/fixtures/golden/mixed_input.log` (evidence: 2 of 2, first: 2025-03-01T10:00:02+00:00)
+
 ## Suspected Components
 - db (errors: 1)
 - api (errors: 1)

@@ -1,8 +1,6 @@
-# deep_research_auto.md
-
-Generated: 2026-03-09 18:34 UTC  
+Generated: 2026-03-11 16:58 UTC  
 Repository: `incident-triage-toolkit`  
-Scope: refresh the docs-only engineering priority order so `docs/ai_todo.md` stays actionable against the live repo state.
+Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against the live repo state.
 
 ## Repo evidence reviewed
 - `docs/status.md`
@@ -13,64 +11,79 @@ Scope: refresh the docs-only engineering priority order so `docs/ai_todo.md` sta
 - `triage_toolkit/{cli.py,evidence.py,models.py,parser.py,runbook.py,timeline.py}`
 - `tests/{test_cli.py,test_parser.py,test_runbook.py,test_timeline.py}`
 
+## Docs file existence check
+- `docs/status.md` ✅ exists
+- `docs/critical_todo.md` ✅ exists
+- `docs/ai_todo.md` ✅ exists
+
 ## Local verification run
 - `git status --short --branch` ✅ clean `main...origin/main`
-- `make test` ✅ (`91 passed`)
+- `make test` ✅ (`98 passed`)
+
+## Minimal external validation
+- Python official sorting docs state that Python sort is **stable** (equal-key items preserve input order). That explains why the current timestamp-only helper ordering behaves deterministically in existing CLI flows, but it also highlights that the repo is still relying on an implementation property instead of an explicit product-level tie-break contract.
+- SemVer 2.0.0 guidance says **minor** versions are for backward-compatible new functionality. That matches the current summary schema bump to `1.1.0` for additive `evidence_by_source` output.
 
 ## Live architecture snapshot
-1. **The core CLI baseline is healthy**
-   - Multi-input ingestion, deterministic merge order, dropped-line diagnostics, filter parity, stdin ingestion, richer runbook evidence, and shared error/evidence semantics are now shipped.
-   - The repo is no longer bottlenecked on basic command-surface parity.
+1. **The CLI ingestion pipeline is centralized and healthy**
+   - `triage_toolkit/cli.py` funnels `parse`, `summary`, `timeline`, and `runbook` through shared ingestion helpers, strict parse gates, and common filter semantics.
+   - This is good news: the product is no longer missing basic command parity, and the remaining work is mostly contract hardening and output parity.
 
-2. **The biggest remaining trust gap is source traceability**
-   - `triage_toolkit/models.py` still does not preserve `source_path` / `line_number` for successful parsed events.
-   - Dropped-line diagnostics already preserve provenance, so the success path is now the weaker audit surface.
-   - Timeline/runbook output therefore cannot point operators back to the original line that produced a normalized evidence row.
+2. **Successful-event provenance is already shipped end-to-end**
+   - `triage_toolkit/models.py` now carries `source_timestamp`, `source_offset`, `source_path`, and `line_number`.
+   - `triage_toolkit/parser.py` stamps successful parsed events with stable source labels and line numbers.
+   - `tests/test_parser.py` and `tests/test_cli.py` already lock those provenance expectations.
+   - Conclusion: the old traceability gap is closed. It should not stay near the top of the queue anymore.
 
-3. **Safe-sharing is still missing where the product is becoming more useful**
-   - The toolkit already exposes raw dropped lines when diagnostics are enabled.
-   - Runbook evidence/examples are now richer too.
-   - That makes deterministic redaction the next real operational hardening step, not just a nice-to-have.
+3. **Per-source evidence concentration is only half-finished**
+   - `triage_toolkit/evidence.py` already exposes `build_source_evidence()` / `evidence_by_source()`.
+   - `triage_toolkit/cli.py` already ships `evidence_by_source` in `triage summary` with `SUMMARY_SCHEMA_VERSION = "1.1.0"`.
+   - `triage_toolkit/timeline.py` and `triage_toolkit/runbook.py` still show per-event provenance, but they do not yet summarize which source dominates the incident slice.
+   - Conclusion: ITK-022 should stay first, but only the remaining human-readable parity work.
 
-4. **Multi-input support is shipped, but source-level insight is still absent**
-   - The product can merge multiple logs deterministically, yet the outputs still emphasize components more than source concentration.
-   - Once successful-event provenance lands, the next leverage point is showing which source file/stdin stream dominates the evidence slice.
+4. **The determinism gap has moved from merge logic to helper-layer explicitness**
+   - `cli.py::_read_events_for_parse()` explicitly sorts merged events by `(timestamp, source_index, event_index)`.
+   - `evidence.py::order_events()` still sorts only by `event.timestamp`.
+   - In practice, current CLI flows remain deterministic because merged input is already ordered and Python sort is stable, but that guarantee is indirect and fragile as a product contract.
+   - Conclusion: the next highest-value hardening step is making the same-timestamp tie-break rule explicit across all downstream helper paths.
 
-5. **Two contract surfaces still need explicit hardening before more output growth**
-   - End-to-end equal-timestamp determinism is partly implicit outside the CLI merge path.
-   - `triage summary` is the main machine-readable automation surface, but it still lacks dedicated contract/golden coverage for the next schema/output expansions.
+5. **`triage summary` is now a real API surface and needs stronger contract locking**
+   - The repo already has rich summary assertions in `tests/test_cli.py`, including multi-input, stdin, filter, and ordering behavior.
+   - What is still missing is the same style of dedicated golden/contract fixture coverage that already exists for parse/timeline/runbook outputs.
+   - Conclusion: once ITK-022/ITK-023 land, summary JSON contract locking is the next leverage point.
+
+## Assumptions
+- The current clean working tree plus `98 passed` is the live baseline to prioritize from.
+- README compatibility notes are treated as the intended public contract, not just informal commentary.
+- The main supported consumption surfaces remain: human-readable markdown (`timeline`, `runbook`) and machine-readable JSON (`parse`, `summary`).
+
+## Unknowns
+- Whether timeline/runbook source concentration should render the top N sources only or all ranked sources.
+- Whether explicit equal-timestamp tie-break data should live on `LogEvent` itself or remain a helper/ordering concern.
+- Whether downstream automation consumers care about literal JSON key ordering in `summary` or only semantic shape/content.
 
 ## Roadmap decisions derived from the current repo
 
-### P1 — ITK-020: Preserve source provenance for successful parsed events and rendered evidence
-**Why now:** highest operator-trust and auditability gap in the live repo.
+### P1 — ITK-022: Finish per-source evidence concentration in timeline/runbook
+**Why now:** the underlying data and ranking helper already exist, `summary` already exposes the machine-readable version, and the human-facing outputs are the obvious remaining parity gap.
 
-### P1 — ITK-021: Add deterministic redaction controls for diagnostics and evidence surfaces
-**Why next:** richer evidence is increasingly shareable only if the toolkit offers a stable safe-sharing mode.
+### P1 — ITK-023: Make equal-timestamp determinism explicit across helper paths
+**Why next:** the product promise is deterministic ordering, but helper-layer ordering still depends on stable-sort behavior plus preserved caller order rather than one explicit end-to-end contract.
 
-### P2 — ITK-022: Surface per-source evidence concentration across summary/timeline/runbook
-**Why after provenance:** source-focused triage becomes much more valuable once successful events carry stable source labels and line numbers.
-
-### P2 — ITK-023: Make equal-timestamp determinism explicit across parse, timeline, runbook, and evidence helpers
-**Why next:** determinism is part of the product promise and should be proven, not just implied by current implementation details.
-
-### P2 — ITK-024: Add golden/contract coverage for the summary JSON automation surface
-**Why next:** upcoming provenance/source/redaction work will otherwise raise accidental contract-drift risk on the machine-readable path.
+### P2 — ITK-024: Add dedicated golden/contract coverage for summary JSON
+**Why after that:** `summary` is already versioned and richer than before, so the right follow-up is to make accidental schema/output drift painfully obvious in tests.
 
 ## Explicitly de-prioritized in this pass
-- Broad parser-format expansion: still not strongly justified by the small bundled sample corpus.
-- New non-doc source work in this maintenance pass: out of scope here; only the queue was refreshed.
-- Cosmetic doc-only cleanup that does not change engineering leverage.
+- New parser-format expansion: current evidence does not show a stronger need than finishing source parity and determinism hardening.
+- Dependency growth or broader refactors: the repo is intentionally lightweight (`typer` only at runtime) and does not need extra moving parts for the current roadmap.
+- Reopening provenance/redaction as top-level priorities: both are already shipped and covered enough to move down unless new regressions appear.
 
 ## Risks / blockers to monitor
-- Provenance adds parse-contract surface area, so schema-version discipline matters.
-- Redaction must be documented as best-effort, not perfect secrecy.
-- Source-level evidence ranking should not fork from the shared evidence semantics that ITK-019 just stabilized.
-- Determinism work should avoid accidental regression in the current file/stdin merge contract.
+- ITK-022 should reuse shared source-ranking helpers rather than creating separate timeline/runbook ranking rules.
+- ITK-023 must preserve the existing documented merge contract (`timestamp`, then CLI input order, then line order) rather than accidentally replacing it with lexical path ordering.
+- ITK-024 should lock the current contract without overpromising cosmetic JSON key ordering that external consumers may not truly need.
 
 ## Priority mapping reflected in `docs/ai_todo.md`
-1. ITK-020 — source provenance for successful events and evidence
-2. ITK-021 — deterministic redaction controls
-3. ITK-022 — per-source evidence concentration
-4. ITK-023 — explicit equal-timestamp determinism contract
-5. ITK-024 — summary JSON contract/golden coverage
+1. ITK-022 — finish human-readable source concentration parity
+2. ITK-023 — make equal-timestamp determinism explicit end-to-end
+3. ITK-024 — add dedicated summary JSON golden/contract coverage

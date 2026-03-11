@@ -146,7 +146,7 @@ Example parse payload:
 }
 ```
 
-Timeline and runbook outputs continue to render UTC timestamps only, but now cite source provenance as `source_path:line_number` in event/evidence surfaces.
+Timeline and runbook outputs continue to render UTC timestamps only, but now cite source provenance as `source_path:line_number` in event/evidence surfaces and summarize evidence concentration by stable source label.
 When you add `--redact`, those human-readable surfaces keep the same event/evidence ordering but replace sensitive values with stable placeholders such as `[redacted-email:...]`, `[redacted-ip:...]`, `[redacted-id:...]`, and `[redacted-secret:...]`.
 
 ### Opt-in redaction mode (`--redact`)
@@ -199,9 +199,12 @@ Filter semantics:
 `triage runbook` now includes deterministic evidence sections derived from the parsed event slice:
 - incident window, first/last observed timestamps, and evidence-event counts
 - top normalized error signatures with counts and first/last seen timestamps
+- per-source evidence concentration using the same stable source labels and ordering as `triage summary`
 - suspected components with error counts
 - representative correlation IDs from the evidence slice
 - 1-3 representative failures, chosen deterministically as the earliest occurrence for each top signature
+
+`triage timeline` also includes an `Evidence by Source` section that ranks sources by evidence count descending, then earliest evidence timestamp, then source label text.
 
 The runbook remains UTC-first. If filters remove all matching events (or no error-like evidence exists in the slice), the markdown switches to an explicit no-evidence template instead of generic filler.
 
