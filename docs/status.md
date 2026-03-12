@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-032 completed (CLI summary/redaction helper coverage now directly locks automation-facing ordering invariants):
+  - Expanded `tests/test_cli_helpers.py` with direct helper coverage for `_top_items(...)`, `_build_incident_summary(...)`, and `_redact_parse_summary(...)`.
+  - Added ranking assertions for count/name tie behavior, machine-readable summary fields across a mixed evidence/non-evidence event slice, and deterministic placeholder reuse across redacted dropped-line diagnostics.
+  - Kept the milestone coverage-only: no production code or public CLI contract changes were needed because the current helper behavior already matched the documented README summary/redaction semantics.
+- Why:
+  - The machine-readable summary payload and share-safe parse diagnostics path are now protected at the helper layer, so ordering/redaction regressions surface earlier and more locally than with end-to-end command tests alone.
+- Risks / follow-ups:
+  - This milestone intentionally stayed inside `tests/test_cli_helpers.py`; the next highest-value operator-surface gap remains direct version/input failure coverage in ITK-033.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py` ✅ (11 passed)
+  - `.venv/bin/python -m pytest -q tests/test_summary_contract.py` ✅ (5 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary or redact"` ✅ (16 passed, 43 deselected)
+  - `make lint` ✅
+  - `make test` ✅ (147 passed)
 - ITK-029 completed (parser helper coverage now directly locks provenance extraction, diagnostics builders, and source-order propagation):
   - Expanded `tests/test_parser.py` with direct helper coverage for `_source_timestamp_provenance(...)`, `_build_parse_summary(...)`, and `_build_dropped_line_diagnostic(...)` so provenance trimming/offset extraction, summary ratio/reason ordering, and dropped-line diagnostic shapes are now asserted at the unit layer.
   - Added parser-focused regression coverage for the documented dropped-line boundaries across blank lines, invalid JSON, non-object JSON, missing timestamps, invalid timestamps, and unrecognized text, while keeping expectations tied to the public reason strings rather than incidental parser internals.
@@ -158,4 +172,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Resume ITK-032 by adding direct CLI summary/redaction helper coverage for automation-facing ordering invariants.
+- Resume ITK-033 by adding direct CLI operator-surface coverage for version fallback and input failure paths.

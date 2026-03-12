@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -141,6 +143,154 @@ def test_strict_parse_error_prioritizes_zero_parsed_lines_and_formats_drop_ratio
         )
         is None
     )
+
+
+def test_top_items_orders_by_count_then_name_and_applies_limit():
+    ranked = cli_module._top_items(Counter({"worker": 1, "db": 2, "api": 2, "cache": 1}), limit=3)
+
+    assert ranked == [
+        {"name": "api", "count": 2},
+        {"name": "db", "count": 2},
+        {"name": "cache", "count": 1},
+    ]
+
+
+def test_build_incident_summary_includes_ranked_automation_fields_for_mixed_event_sets():
+    events = [
+        _event(
+            "2025-01-01T00:00:01Z",
+            component="web",
+            message="accepted",
+            correlation_id="c-web",
+            source_path="web.log",
+            line_number=1,
+            source_order=0,
+        ),
+        _event(
+            "2025-01-01T00:00:02Z",
+            level="ERROR",
+            component="api",
+            message="Timeout cid=c-1",
+            correlation_id="c-1",
+            source_path="a.log",
+            line_number=1,
+            source_order=1,
+        ),
+        _event(
+            "2025-01-01T00:00:02Z",
+            level="ERROR",
+            component="worker",
+            message="Timeout cid=c-2",
+            correlation_id="c-2",
+            source_path="b.log",
+            line_number=1,
+            source_order=2,
+        ),
+        _event(
+            "2025-01-01T00:00:03Z",
+            level="WARN",
+            component="cache",
+            message="error path engaged",
+            source_path="c.log",
+            line_number=1,
+            source_order=3,
+        ),
+        _event(
+            "2025-01-01T00:00:04Z",
+            component="web",
+            message="healthy",
+            source_path="web.log",
+            line_number=2,
+            source_order=0,
+        ),
+        _event(
+            "2025-01-01T00:00:05Z",
+            level="CRITICAL",
+            component="db",
+            message="Query failed cid=q-1",
+            correlation_id="q-1",
+            source_path="d.log",
+            line_number=1,
+            source_order=4,
+        ),
+    ]
+
+    assert cli_module._build_incident_summary(events) == {
+        "schema_version": cli_module.SUMMARY_SCHEMA_VERSION,
+        "incident_window": {
+            "start": "2025-01-01T00:00:01+00:00",
+            "end": "2025-01-01T00:00:05+00:00",
+        },
+        "event_count": 6,
+        "error_count": 4,
+        "top_components": [
+            {"name": "web", "count": 2},
+            {"name": "api", "count": 1},
+            {"name": "cache", "count": 1},
+        ],
+        "top_error_signatures": [
+            {"name": "timeout cid=<id>", "count": 2},
+            {"name": "error path engaged", "count": 1},
+            {"name": "query failed cid=<id>", "count": 1},
+        ],
+        "evidence_by_source": [
+            {"source": "a.log", "count": 1},
+            {"source": "b.log", "count": 1},
+            {"source": "c.log", "count": 1},
+            {"source": "d.log", "count": 1},
+        ],
+        "correlation_id_coverage": {
+            "covered_events": 4,
+            "total_events": 6,
+            "coverage_ratio": 0.666667,
+        },
+    }
+
+
+def test_redact_parse_summary_reuses_deterministic_placeholders_across_diagnostics():
+    repeated_secret = "AbCdEfGhIjKlMnOpQrSt123456"
+    repeated_id = "550e8400-e29b-41d4-a716-446655440000"
+    summary = _summary(
+        total_lines=3,
+        parsed_lines=1,
+        dropped_reasons={"unrecognized_text": 2},
+        dropped_line_diagnostics=[
+            {
+                "source_path": "a.log",
+                "line_number": 2,
+                "reason": "unrecognized_text",
+                "raw_line": (
+                    f"notify alice@example.com from 10.2.3.4 cid={repeated_id} token={repeated_secret}"
+                ),
+            },
+            {
+                "source_path": "b.log",
+                "line_number": 4,
+                "reason": "unrecognized_text",
+                "raw_line": (
+                    f"repeat alice@example.com via 10.2.3.4 cid={repeated_id} token={repeated_secret}"
+                ),
+            },
+        ],
+    )
+
+    redacted = cli_module._redact_parse_summary(summary)
+    first_placeholders = re.findall(r"\[redacted-[^\]]+\]", redacted["dropped_line_diagnostics"][0]["raw_line"])
+    second_placeholders = re.findall(r"\[redacted-[^\]]+\]", redacted["dropped_line_diagnostics"][1]["raw_line"])
+
+    assert redacted["total_lines"] == 3
+    assert first_placeholders == second_placeholders
+    assert len(first_placeholders) == 4
+    assert "alice@example.com" not in redacted["dropped_line_diagnostics"][0]["raw_line"]
+    assert "10.2.3.4" not in redacted["dropped_line_diagnostics"][0]["raw_line"]
+    assert repeated_id not in redacted["dropped_line_diagnostics"][0]["raw_line"]
+    assert repeated_secret not in redacted["dropped_line_diagnostics"][0]["raw_line"]
+
+
+def test_redact_parse_summary_is_unchanged_when_diagnostics_are_absent():
+    summary = _summary(total_lines=2, parsed_lines=2)
+
+    assert cli_module._redact_parse_summary(summary) == summary
 
 
 def test_read_events_for_parse_merges_summaries_orders_events_and_carries_forward_diagnostics(
