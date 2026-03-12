@@ -14,6 +14,7 @@ _TS_KEYS = ["timestamp", "time", "ts"]
 _LEVEL_KEYS = ["level", "severity", "lvl"]
 _COMPONENT_KEYS = ["component", "service", "logger"]
 _MESSAGE_KEYS = ["message", "msg", "event"]
+_CORRELATION_ID_KEYS = ["correlation_id", "cid"]
 
 _TEXT_TS_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2}[T ][0-9:.]{8,}(?:Z|[+-]\d{2}:\d{2})?)\s+(?P<rest>.*)$"
@@ -65,7 +66,7 @@ def _parse_json_line_with_reason(line: str) -> tuple[LogEvent | None, str | None
     level = (_get_first(payload, _LEVEL_KEYS, "INFO") or "INFO").upper()
     component = _get_first(payload, _COMPONENT_KEYS, "unknown") or "unknown"
     message = _get_first(payload, _MESSAGE_KEYS, "") or ""
-    correlation_id = payload.get("correlation_id") or payload.get("cid")
+    correlation_id = _get_first(payload, _CORRELATION_ID_KEYS)
     if correlation_id is None:
         correlation_id = extract_correlation_id(message)
 

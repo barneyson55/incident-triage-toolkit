@@ -4,7 +4,6 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 
 ## Repo evidence reviewed
 - `README.md`
-- `AGENTS.md`
 - `docs/AI_EDIT_POLICY.md`
 - `docs/status.md`
 - `docs/critical_todo.md`
@@ -13,9 +12,10 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 - `docs/user_todo.md`
 - live file-existence checks for the key docs requested in this pass
 - live repo status via `git status --short --branch`
-- live repo layout checks for `triage_toolkit/`, `tests/`, and `tests/fixtures/`
-- focused reads of `triage_toolkit/parser.py`, `triage_toolkit/utils.py`, `triage_toolkit/timeline.py`, `triage_toolkit/runbook.py`, `tests/test_parser.py`, `tests/test_utils.py`, `tests/test_timeline.py`, `tests/test_runbook.py`, `tests/test_cli_helpers.py`, `tests/test_main.py`, and `tests/test_output_parity.py`
-- focused symbol/test searches across the repo for remaining direct-coverage gaps
+- live source/test footprint checks for `triage_toolkit/`, `tests/`, and `tests/fixtures/`
+- focused reads of `triage_toolkit/parser.py`, `triage_toolkit/timeline.py`, and `triage_toolkit/runbook.py`
+- focused symbol/test searches across the repo for alias, formatting, and wrapper coverage gaps
+- live verification via `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing -q`
 
 ## Docs file existence check
 - `docs/status.md` ✅ exists
@@ -24,126 +24,102 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 - `docs/deep_research_auto.md` ✅ exists
 
 ## Live repo snapshot used for reprioritization
-- `git status --short --branch` showed a clean tree on entry to this maintenance pass (`## main...origin/main`)
-- package footprint remains compact and reviewable:
+- `git status --short --branch` showed a clean tree on entry (`## main...origin/main`)
+- `docs/user_todo.md` exists and has no open checkbox items
+- current compact repo footprint:
   - 10 source modules under `triage_toolkit/`
   - 11 top-level test modules under `tests/`
-  - 148 top-level test functions
   - 18 tracked fixture files under `tests/fixtures/`
-- dedicated helper suites already exist for:
-  - shared CLI plumbing (`tests/test_cli_helpers.py`)
-  - shared evidence/ranking logic (`tests/test_evidence.py`)
-  - shared redaction behavior (`tests/test_redaction.py`)
-- dedicated contract/golden coverage already exists for:
-  - parse JSON
-  - redacted parse diagnostics
-  - summary JSON
-  - timeline markdown
-  - redacted timeline markdown
-  - runbook markdown
-  - redacted runbook markdown
-  - cross-surface parity (`tests/test_output_parity.py`)
-- latest recorded verification in `docs/status.md`: `make test` ✅ (`153 passed`)
+  - 174 passing tests in the current collected suite
+- live coverage check:
+  - `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing -q` ✅ (`174 passed`)
+  - total coverage: `99%`
+  - uncovered lines are now limited to a few thin branches in `triage_toolkit/cli.py` and `triage_toolkit/parser.py`
 
 ## Architecture findings from repo evidence
 
-### 1) `utils.py` is now the top open hardening target
-This is the smallest direct test surface still sitting underneath every ingest path.
+### 1) The top remaining risk is still heterogeneous JSON ingestion drift
+Live code review shows `parser.py` still accepts multiple alias families:
+- `timestamp | time | ts`
+- `level | severity | lvl`
+- `component | service | logger`
+- `message | msg | event`
 
-Live repo evidence shows:
-- `tests/test_utils.py` still contains only five direct tests
-- `extract_correlation_id(...)` still has no direct coverage
-- timestamp normalization still lacks direct cases for microseconds, `Z` parsing breadth, space-vs-`T` separators, and malformed offset shapes
+It also still resolves correlation IDs by precedence across:
+- payload `correlation_id`
+- payload `cid`
+- message extraction (`cid=` / `correlation_id=`)
 
-Why it should lead now:
-- ITK-033 is already completed and moved out of the active queue
-- `utils.py` is called on both text and JSON parse paths, so regressions propagate widely
-- the work is narrow, coverage-first, and easy to verify without changing public contracts
+Current tests still do **not** directly freeze most of those alias and precedence branches. That makes this the highest-value remaining engineering task because it protects the core heterogeneous-ingestion promise rather than a secondary convenience path.
 
-Roadmap implication:
-- **ITK-031 should be first.**
+**Conclusion:** keep **ITK-035 first**.
 
-### 2) Parser alias branches are important and still under-locked
-The parser claims heterogeneous log support, and the code explicitly accepts multiple JSON key aliases. The suite still leans heavily on the default key names.
+### 2) The next best gap is CLI-level proof that alias-heavy logs survive normalization end-to-end
+Even after adding parser-local tests, the public contract lives in the CLI outputs, not just helper calls. Right now there is no compact fixture proving alias-heavy JSON logs normalize correctly through:
+- `triage parse`
+- `triage summary`
+- `triage timeline`
+- `triage runbook`
 
-Live repo evidence shows:
-- `parser.py` supports `timestamp|time|ts`
-- `parser.py` supports `level|severity|lvl`
-- `parser.py` supports `component|service|logger`
-- `parser.py` supports `message|msg|event`
-- correlation IDs can come from payload `correlation_id`, payload `cid`, or message extraction
-- current parser tests do not directly lock most of those alias/precedence branches
+This deserves to sit immediately after the parser-local task because it converts the heterogeneous-ingestion promise into an end-to-end product contract.
 
-Why this belongs near the top:
-- this is core ingestion behavior, not cosmetic output behavior
-- regressions here would silently drop or flatten supported vendor log shapes
-- the required tests are concrete and parser-local
+**Conclusion:** add **ITK-037 second**.
 
-Roadmap implication:
-- **add ITK-035 as the second active item.**
+### 3) Markdown renderer edge cases are still real, but now clearly third
+Focused code review shows:
+- `timeline.py` escapes pipe characters for table cells
+- `timeline.py` and `runbook.py` flatten embedded newlines before rendering
 
-### 3) Human-facing renderer edge cases remain the next best user-visible gap
-The timeline and runbook outputs are well covered for happy paths, determinism, redaction, provenance, and empty states. They still lack focused assertions for formatting edge cases that can quietly degrade handoff quality.
+Those guardrails exist in code, but the tests still do not directly lock them. This is still worth doing because malformed markdown is user-visible and can degrade operator handoffs. It just sits behind the more central ingestion-contract work.
 
-Live repo evidence shows:
-- `timeline.py` explicitly escapes `|` characters in table cells
-- `timeline.py` and `runbook.py` explicitly flatten embedded newlines before rendering messages/examples
-- current tests assert many content and ordering behaviors, but not those formatting-specific guardrails
+**Conclusion:** keep **ITK-034 active**, but behind the alias-ingestion tasks.
 
-Why this should stay active:
-- malformed markdown is still an operator-facing regression
-- the work is narrow and verifiable
-- it should come after the parser-facing gaps above, not before them
+### 4) The remaining uncovered lines are now small wrapper/helper branches, not major semantic gaps
+The live coverage report isolates the remaining misses to thin branches such as:
+- `_read_stdin_lines()` fallback without `sys.stdin.buffer`
+- `_read_events_for_parse([])` guard
+- no-filter passthrough in `_apply_event_filters(...)`
+- summary file-success echo path
+- `main()` wrapper
+- `parse_file(...)` wrapper
 
-Roadmap implication:
-- **ITK-034 should be third.**
+That is useful cleanup, but it is no longer the best next engineering move while parser alias behavior still lacks direct and end-to-end locking.
+
+**Conclusion:** keep wrapper cleanup last via **ITK-036**.
 
 ## Priority conclusions
-1. **ITK-031 should be first now**
-   - direct utility coverage is still much smaller than the parser stack depends on
-   - especially `extract_correlation_id(...)` and timestamp-shape edges
-
-2. **ITK-035 should be second**
-   - parser alias/precedence support is part of the core heterogeneous-ingestion promise
-   - the current suite does not directly lock most of those branches
-
-3. **ITK-034 should be third**
-   - it protects human-facing markdown quality on pipe/newline/provenance formatting edges that are implemented but not directly frozen
-
-## Resulting active queue
-1. ITK-031 — add direct utility-edge coverage for timestamp normalization and correlation-ID extraction helpers
-2. ITK-035 — lock heterogeneous JSON-ingestion aliases and correlation-ID precedence with direct parser coverage
-3. ITK-034 — add focused markdown-renderer edge coverage for timeline/runbook safety and readability
+1. **ITK-035** — direct parser coverage for alias and correlation-ID precedence
+2. **ITK-037** — end-to-end CLI contract fixture for alias-shaped JSON logs
+3. **ITK-034** — focused markdown formatting edge coverage for timeline/runbook
+4. **ITK-036** — close remaining thin wrapper/helper branch gaps
 
 ## What changed vs the previous ordering
-Previous open queue in practice:
-1. ITK-033
-2. ITK-031
-3. ITK-034
+Previous open queue:
+1. ITK-035
+2. ITK-034
 
 Refreshed queue:
-1. ITK-031
-2. ITK-035
+1. ITK-035
+2. ITK-037
 3. ITK-034
+4. ITK-036
 
 Meaning:
-- completed ITK-033 is removed from the active queue and kept only in the completed section of `docs/ai_todo.md`
-- ITK-031 becomes the clear first unchecked item
-- ITK-035 is added to capture a real parser-support gap that was not previously called out explicitly
-- ITK-034 remains active, but behind the parser-facing items
+- **ITK-035 stays first** because the core ingestion-risk assessment still holds up after live repo review.
+- **ITK-037 is newly added** because the repo still lacks an end-to-end heterogeneous-JSON alias fixture at the CLI contract layer.
+- **ITK-034 moves down one slot** because markdown formatting is important, but parser normalization is more central to the product promise.
+- **ITK-036 is added last** to sweep up the thin wrapper/helper branches exposed by the 99% coverage report.
+- stale repo-shape language was refreshed to match the live suite state (`174 passed`, `99%` coverage, 18 fixture files).
 
 ## Risks / blockers to watch
-- **Status-doc drift:** `docs/status.md` still says `Next` is ITK-031 but does not mention the new ITK-035 follow-on; this refresh intentionally updated the planning docs only.
-- **Parser-test sprawl:** ITK-035 should lock alias and precedence branches directly instead of turning into another broad end-to-end parser rewrite.
-- **Utility-test sprawl:** ITK-031 should stay focused on helper edges instead of recreating parser coverage from below.
-- **Renderer-test sprawl:** ITK-034 should use narrow rendered-fragment assertions, not broad golden churn.
+- **Task overlap risk:** ITK-035 and ITK-037 should stay complementary. Keep ITK-035 parser-local and ITK-037 CLI-contract-focused instead of duplicating assertions across both.
+- **Golden-test sprawl:** ITK-037 and ITK-034 should prefer compact fixtures and narrow assertions over broad golden churn.
+- **Wrapper-cleanup temptation:** ITK-036 is intentionally last. Do not let easy branch coverage displace the more important heterogeneous-ingestion work.
+- **Status-doc drift:** this pass intentionally refreshed planning docs only; `docs/status.md` was not edited in this maintenance pass.
 
 ## Why this refresh was needed
-The previous queue had gone stale in two ways:
-1. it still treated completed ITK-033 as an active priority
-2. it did not call out the parser's untested JSON alias/precedence branches, which are more central to the product promise than another round of renderer-only hardening
-
-This refresh makes the next coding pass unambiguous:
-- **start with ITK-031**
-- then **ITK-035**
-- then **ITK-034**
+The prior queue was too short for the requested maintenance posture and underrepresented the current repo state. After a live 99%-coverage verification pass, the highest-value work is clearer:
+- first lock heterogeneous JSON alias behavior locally
+- then prove it end-to-end at the CLI surface
+- then finish markdown edge assertions
+- finally sweep the remaining thin wrapper branches

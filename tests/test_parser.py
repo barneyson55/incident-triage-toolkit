@@ -1,3 +1,4 @@
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -88,6 +89,196 @@ def test_parse_json_line():
     assert event.level == "ERROR"
     assert event.component == "db"
     assert event.correlation_id == "c-1"
+
+
+@pytest.mark.parametrize(
+    (
+        "payload",
+        "expected_timestamp",
+        "expected_source_timestamp",
+        "expected_source_offset",
+        "expected_level",
+        "expected_component",
+        "expected_message",
+        "expected_correlation_id",
+    ),
+    [
+        (
+            {
+                "time": "2025-01-01T02:00:01+02:00",
+                "severity": "warn",
+                "service": "payments",
+                "msg": "slow response cid=msg-time",
+            },
+            "2025-01-01T00:00:01+00:00",
+            "2025-01-01T02:00:01+02:00",
+            "+02:00",
+            "WARN",
+            "payments",
+            "slow response cid=msg-time",
+            "msg-time",
+        ),
+        (
+            {
+                "ts": "2025-01-01T00:00:03Z",
+                "lvl": "error",
+                "logger": "worker.queue",
+                "event": "job failed correlation_id=evt-ts",
+            },
+            "2025-01-01T00:00:03+00:00",
+            "2025-01-01T00:00:03Z",
+            "Z",
+            "ERROR",
+            "worker.queue",
+            "job failed correlation_id=evt-ts",
+            "evt-ts",
+        ),
+    ],
+)
+def test_parse_json_line_accepts_documented_alias_shapes(
+    payload,
+    expected_timestamp,
+    expected_source_timestamp,
+    expected_source_offset,
+    expected_level,
+    expected_component,
+    expected_message,
+    expected_correlation_id,
+):
+    event = parse_json_line(json.dumps(payload))
+
+    assert event is not None
+    assert event.timestamp.isoformat() == expected_timestamp
+    assert event.source_timestamp == expected_source_timestamp
+    assert event.source_offset == expected_source_offset
+    assert event.level == expected_level
+    assert event.component == expected_component
+    assert event.message == expected_message
+    assert event.correlation_id == expected_correlation_id
+
+
+
+def test_parse_json_line_prefers_populated_primary_keys_over_aliases():
+    event = parse_json_line(
+        json.dumps(
+            {
+                "timestamp": "2025-01-01T00:00:01Z",
+                "time": "2025-01-01T00:00:02Z",
+                "ts": "2025-01-01T00:00:03Z",
+                "level": "error",
+                "severity": "warn",
+                "lvl": "debug",
+                "component": "api",
+                "service": "worker",
+                "logger": "gateway",
+                "message": "primary message cid=from-message",
+                "msg": "secondary message",
+                "event": "tertiary message",
+                "correlation_id": "cid-primary",
+                "cid": "cid-secondary",
+            }
+        )
+    )
+
+    assert event is not None
+    assert event.timestamp.isoformat() == "2025-01-01T00:00:01+00:00"
+    assert event.level == "ERROR"
+    assert event.component == "api"
+    assert event.message == "primary message cid=from-message"
+    assert event.correlation_id == "cid-primary"
+
+
+
+def test_parse_json_line_falls_through_empty_alias_values_and_keeps_optional_defaults():
+    event = parse_json_line(
+        json.dumps(
+            {
+                "timestamp": "",
+                "time": None,
+                "ts": "2025-01-01T00:00:05Z",
+                "level": "",
+                "severity": None,
+                "lvl": "error",
+                "component": "",
+                "service": None,
+                "logger": "queue.worker",
+                "message": "",
+                "msg": None,
+                "event": "processed cid=evt-5",
+            }
+        )
+    )
+    defaulted_event = parse_json_line(json.dumps({"ts": "2025-01-01T00:00:06Z", "event": "hello"}))
+
+    assert event is not None
+    assert event.timestamp.isoformat() == "2025-01-01T00:00:05+00:00"
+    assert event.level == "ERROR"
+    assert event.component == "queue.worker"
+    assert event.message == "processed cid=evt-5"
+    assert event.correlation_id == "evt-5"
+
+    assert defaulted_event is not None
+    assert defaulted_event.level == "INFO"
+    assert defaulted_event.component == "unknown"
+    assert defaulted_event.message == "hello"
+    assert defaulted_event.correlation_id is None
+
+
+
+def test_parse_json_line_with_reason_treats_empty_timestamp_aliases_as_missing_timestamp():
+    event, reason = parser_module._parse_json_line_with_reason(
+        json.dumps({"timestamp": "", "time": None, "ts": "", "message": "broken"})
+    )
+
+    assert event is None
+    assert reason == "missing_timestamp"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_correlation_id"),
+    [
+        (
+            {
+                "timestamp": "2025-01-01T00:00:07Z",
+                "message": "failed cid=from-message",
+                "correlation_id": "cid-primary",
+                "cid": "cid-secondary",
+            },
+            "cid-primary",
+        ),
+        (
+            {
+                "timestamp": "2025-01-01T00:00:08Z",
+                "message": "failed correlation_id=from-message",
+                "correlation_id": "",
+                "cid": "cid-secondary",
+            },
+            "cid-secondary",
+        ),
+        (
+            {
+                "timestamp": "2025-01-01T00:00:09Z",
+                "message": "failed cid=from-message",
+                "correlation_id": None,
+                "cid": "",
+            },
+            "from-message",
+        ),
+        (
+            {
+                "timestamp": "2025-01-01T00:00:10Z",
+                "message": "failed correlation_id=from-message",
+            },
+            "from-message",
+        ),
+    ],
+)
+def test_parse_json_line_correlation_id_precedence_and_fallbacks(payload, expected_correlation_id):
+    event = parse_json_line(json.dumps(payload))
+
+    assert event is not None
+    assert event.correlation_id == expected_correlation_id
+
 
 
 def test_parse_text_line():

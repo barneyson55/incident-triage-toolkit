@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-035 completed (direct parser coverage now locks heterogeneous JSON aliases and correlation-ID precedence):
+  - Expanded `tests/test_parser.py` with focused JSON-ingestion coverage for `time` / `ts`, `severity` / `lvl`, `service` / `logger`, and `msg` / `event`, including provenance assertions on normalized timestamps and preserved source offsets.
+  - Added precedence/fallback coverage proving populated primary keys beat aliases, empty/`null` alias values fall through correctly, and missing optional level/component fields still default to `INFO` / `unknown`.
+  - Tightened `triage_toolkit/parser.py` so JSON correlation-ID selection now uses the same non-empty alias fallback semantics as other parser fields before falling back to message extraction (`cid=` / `correlation_id=`), which fixes the previously uncovered empty-`cid` edge.
+- Why:
+  - The parser’s vendor-style JSON alias support is now protected directly at the unit seam where regressions would occur, instead of relying on broader CLI fixtures that mostly exercised only the default field names.
+- Risks / follow-ups:
+  - This milestone intentionally stays at the parser seam; the next queued item is ITK-037 to lock the same alias-heavy behavior through compact end-to-end CLI contract fixtures.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "json or alias or correlation"` ✅ (15 passed, 21 deselected)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse or summary"` ✅ (45 passed, 14 deselected)
+  - `make test` ✅ (183 passed)
+  - `make lint` ✅
+
 - ITK-031 completed (direct utility-edge coverage now locks timestamp normalization and correlation-ID helper behavior):
   - Expanded `tests/test_utils.py` with focused helper-only coverage for naive and offset-aware timestamp normalization across `T` and space separators, microsecond precision, trailing `Z`, and invalid timestamp/offset shapes.
   - Added direct `extract_correlation_id(...)` coverage for supported `cid=` / `correlation_id=` message patterns plus explicit non-match boundaries, keeping the milestone inside `tests/test_utils.py` with no production-code or contract changes.
@@ -198,4 +212,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Resume ITK-035 by locking heterogeneous JSON-ingestion aliases and correlation-ID precedence with direct parser coverage.
+- Start ITK-037 by adding a compact end-to-end CLI contract fixture for alias-shaped JSON logs.
