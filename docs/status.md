@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-029 completed (parser helper coverage now directly locks provenance extraction, diagnostics builders, and source-order propagation):
+  - Expanded `tests/test_parser.py` with direct helper coverage for `_source_timestamp_provenance(...)`, `_build_parse_summary(...)`, and `_build_dropped_line_diagnostic(...)` so provenance trimming/offset extraction, summary ratio/reason ordering, and dropped-line diagnostic shapes are now asserted at the unit layer.
+  - Added parser-focused regression coverage for the documented dropped-line boundaries across blank lines, invalid JSON, non-object JSON, missing timestamps, invalid timestamps, and unrecognized text, while keeping expectations tied to the public reason strings rather than incidental parser internals.
+  - Added a focused `parse_lines_with_summary(...)` regression proving successful events retain stable `source_order`, `source_path`, and original line-number provenance even when dropped-line diagnostics are collected in the same pass.
+- Why:
+  - The parser helper/builder seams that feed every CLI command are no longer protected only indirectly through larger command tests, which makes provenance/diagnostic regressions easier to pinpoint without changing production code or the public parse contract.
+- Risks / follow-ups:
+  - This milestone intentionally stayed coverage-only; the next highest-value direct-helper gap remains CLI summary/redaction helper coverage in ITK-032.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_parser.py` ✅ (27 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse and provenance"` ✅ (2 passed)
+  - `make lint` ✅
+  - `make test` ✅ (143 passed)
 - ITK-030 completed (full redacted golden fixtures now freeze parse diagnostics, timeline markdown, and runbook markdown):
   - Added a compact shared sensitive fixture at `tests/fixtures/golden/redacted_input.log` plus matching redacted golden artifacts: `tests/fixtures/golden/parse_output_redacted.json`, `tests/fixtures/golden/timeline_output_redacted.md`, and `tests/fixtures/golden/runbook_output_redacted.md`.
   - Updated `tests/test_cli.py`, `tests/test_timeline.py`, and `tests/test_runbook.py` so the redacted surfaces are now compared against full golden outputs instead of only a few substring checks; the CLI test also asserts the same four redaction placeholders are reused across parse, timeline, and runbook outputs.
@@ -145,4 +158,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Resume ITK-029 by tightening parser helper coverage for provenance extraction, diagnostics builders, and source-order propagation.
+- Resume ITK-032 by adding direct CLI summary/redaction helper coverage for automation-facing ordering invariants.

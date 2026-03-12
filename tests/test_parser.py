@@ -1,4 +1,7 @@
+from collections import Counter
 from pathlib import Path
+
+import pytest
 
 import triage_toolkit.parser as parser_module
 from triage_toolkit.parser import (
@@ -9,6 +12,73 @@ from triage_toolkit.parser import (
     parse_lines_with_summary,
     parse_text_line,
 )
+
+
+def test_source_timestamp_provenance_extracts_trimmed_offset_variants():
+    assert parser_module._source_timestamp_provenance(" 2025-01-01T00:00:02Z ") == (
+        "2025-01-01T00:00:02Z",
+        "Z",
+    )
+    assert parser_module._source_timestamp_provenance("2025-01-01T02:00:02+02:00") == (
+        "2025-01-01T02:00:02+02:00",
+        "+02:00",
+    )
+    assert parser_module._source_timestamp_provenance("2025-01-01 00:00:02") == (
+        "2025-01-01 00:00:02",
+        None,
+    )
+
+
+
+def test_build_parse_summary_sorts_reasons_rounds_ratio_and_preserves_optional_diagnostics():
+    summary = parser_module._build_parse_summary(
+        total_lines=3,
+        parsed_lines=1,
+        dropped_reasons=Counter({"unrecognized_text": 1, "blank_line": 1}),
+        dropped_line_diagnostics=[{"raw_line": "bad-line"}],
+    )
+
+    assert summary == {
+        "total_lines": 3,
+        "parsed_lines": 1,
+        "dropped_lines": 2,
+        "drop_ratio": 0.666667,
+        "dropped_reasons": {
+            "blank_line": 1,
+            "unrecognized_text": 1,
+        },
+        "dropped_line_diagnostics": [{"raw_line": "bad-line"}],
+    }
+
+    without_diagnostics = parser_module._build_parse_summary(
+        total_lines=0,
+        parsed_lines=0,
+        dropped_reasons=Counter(),
+    )
+
+    assert without_diagnostics == {
+        "total_lines": 0,
+        "parsed_lines": 0,
+        "dropped_lines": 0,
+        "drop_ratio": 0.0,
+        "dropped_reasons": {},
+    }
+
+
+
+def test_build_dropped_line_diagnostic_exposes_public_fields():
+    assert parser_module._build_dropped_line_diagnostic(
+        source_path="-",
+        line_number=4,
+        reason="invalid_json",
+        raw_line='{"timestamp":',
+    ) == {
+        "source_path": "-",
+        "line_number": 4,
+        "reason": "invalid_json",
+        "raw_line": '{"timestamp":',
+    }
+
 
 
 def test_parse_json_line():
@@ -116,6 +186,33 @@ def test_parse_lines_with_summary_accepts_stable_stdin_source_label():
     ]
 
 
+
+def test_parse_lines_with_summary_propagates_source_order_to_successful_events():
+    events, summary = parse_lines_with_summary(
+        [
+            "bad-line",
+            "2025-01-01T00:00:01Z INFO api: first",
+            "2025-01-01T00:00:01Z INFO api: second",
+        ],
+        source_path="source-a.log",
+        source_order=7,
+        diagnostics_limit=1,
+    )
+
+    assert [(event.source_order, event.source_path, event.line_number, event.message) for event in events] == [
+        (7, "source-a.log", 2, "first"),
+        (7, "source-a.log", 3, "second"),
+    ]
+    assert summary["dropped_line_diagnostics"] == [
+        {
+            "source_path": "source-a.log",
+            "line_number": 1,
+            "reason": "unrecognized_text",
+            "raw_line": "bad-line",
+        }
+    ]
+
+
 def test_parse_file_with_summary_preserves_source_path_and_line_number_for_successful_events(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text(
@@ -131,22 +228,30 @@ def test_parse_file_with_summary_preserves_source_path_and_line_number_for_succe
     ]
 
 
-def test_parse_dropped_reason_for_invalid_json():
-    event, reason = parse_line_with_reason('{"timestamp":')
+@pytest.mark.parametrize(
+    ("line", "expected_reason"),
+    [
+        ("   ", "blank_line"),
+        ('{"timestamp":', "invalid_json"),
+        ('{"message":"missing timestamp"}', "missing_timestamp"),
+        ('{"timestamp":"bad-ts","message":"broken"}', "invalid_timestamp"),
+        ("2025-99-01T00:00:02Z INFO api: broken timestamp", "invalid_timestamp"),
+        ("not a log line", "unrecognized_text"),
+    ],
+)
+def test_parse_line_with_reason_classifies_documented_drop_boundaries(line, expected_reason):
+    event, reason = parse_line_with_reason(line)
+
     assert event is None
-    assert reason == "invalid_json"
+    assert reason == expected_reason
 
 
-def test_parse_dropped_reason_for_json_not_object():
+
+def test_parse_json_line_with_reason_classifies_non_object_payloads():
     event, reason = parser_module._parse_json_line_with_reason('["not", "an", "object"]')
+
     assert event is None
     assert reason == "json_not_object"
-
-
-def test_parse_text_line_invalid_timestamp_reason():
-    event, reason = parse_line_with_reason("2025-99-01T00:00:02Z INFO api: broken timestamp")
-    assert event is None
-    assert reason == "invalid_timestamp"
 
 
 def test_parse_line_with_reason_uses_unknown_fallback(monkeypatch):

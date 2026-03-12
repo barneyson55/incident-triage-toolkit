@@ -1,4 +1,4 @@
-Generated: 2026-03-12 15:07 UTC  
+Generated: 2026-03-12 16:30 UTC  
 Repository: `incident-triage-toolkit`  
 Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against the live repo state.
 
@@ -11,9 +11,9 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 - `docs/ai_todo.md` (pre-refresh)
 - `docs/deep_research_auto.md` (pre-refresh)
 - `docs/user_todo.md`
-- live file-existence checks for the key docs/test surfaces referenced by the queue
-- repo status via `git status --short --branch`
-- test/layout verification for the current regression surfaces under `tests/`
+- live file-existence checks for the key docs requested in this pass
+- live repo layout checks for `triage_toolkit/`, `tests/`, and `tests/fixtures/golden/`
+- live repo status via `git status --short --branch`
 
 ## Docs file existence check
 - `docs/status.md` ✅ exists
@@ -22,122 +22,104 @@ Scope: docs-only priority refresh so `docs/ai_todo.md` stays actionable against 
 - `docs/deep_research_auto.md` ✅ exists
 
 ## Live repo snapshot used for reprioritization
-- `git status --short --branch` ✅ `main...origin/main` (working tree clean)
-- package footprint remains compact and legible:
+- `git status --short --branch` ✅ clean working tree in this maintenance pass
+- package footprint remains compact and reviewable:
   - 10 source modules under `triage_toolkit/`
   - 11 test modules under `tests/`
-  - 133 test functions total
-  - 11 golden fixtures under `tests/fixtures/golden/`
+  - 135 test functions total
+  - 15 golden fixtures under `tests/fixtures/golden/`
 - dedicated helper suites already exist for:
   - shared CLI plumbing (`tests/test_cli_helpers.py`)
   - shared evidence/ranking logic (`tests/test_evidence.py`)
   - shared redaction behavior (`tests/test_redaction.py`)
-- dedicated non-redacted contract/golden coverage already exists for:
+- dedicated contract/golden coverage already exists for:
   - parse JSON (`tests/test_cli.py` + `tests/fixtures/golden/parse_output.json`)
+  - redacted parse diagnostics (`tests/fixtures/golden/parse_output_redacted.json`)
   - summary JSON (`tests/test_summary_contract.py` + summary-specific goldens)
   - timeline markdown (`tests/test_timeline.py` + `tests/fixtures/golden/timeline_output.md`)
+  - redacted timeline markdown (`tests/fixtures/golden/timeline_output_redacted.md`)
   - runbook markdown (`tests/test_runbook.py` + `tests/fixtures/golden/runbook_output.md`)
+  - redacted runbook markdown (`tests/fixtures/golden/runbook_output_redacted.md`)
 - dedicated cross-surface parity coverage now exists:
-  - `tests/test_output_parity.py` ✅ present with 3 filtered-slice parity tests
-- redacted golden fixtures are still missing:
-  - no `tests/fixtures/golden/*redact*` files yet
-- latest recorded verification in `docs/status.md`: `make test` ✅ (`133 passed`)
+  - `tests/test_output_parity.py` ✅ present
+- latest recorded verification in `docs/status.md`: `make test` ✅ (`135 passed`)
 
 ## Architecture findings from repo evidence
 
-### 1) The repo’s biggest remaining gap has moved from cross-surface parity to redacted full-output freezing
-The previous maintenance pass was still justified in putting parity first. That changed once ITK-028 landed and `tests/test_output_parity.py` started locking the shared filtered-slice seam across `summary`, `timeline`, and `runbook`.
+### 1) The highest-value missing seam is now parser-helper hardening, not redacted artifact freezing
+The previous research note was stale because it still treated redacted full-output goldens as the top missing regression net. That is no longer true: the repo now contains redacted golden fixtures for parse diagnostics, timeline markdown, and runbook markdown, and `docs/status.md` records ITK-030 as complete.
 
-What that means now:
-- the highest-risk *missing* regression net is no longer semantic parity across surfaces
-- it is the lack of end-to-end goldens for the redacted operator-facing artifacts those surfaces emit
-
-### 2) Redaction is a public/safety-facing feature, but its full artifacts are still only partially locked
-Repo evidence now shows three layers of redaction protection:
-- helper-level unit coverage in `tests/test_redaction.py`
-- targeted CLI assertions in `tests/test_cli.py`
-- targeted renderer assertions in `tests/test_timeline.py` and `tests/test_runbook.py`
-
-What is still not frozen:
-- the full redacted parse diagnostics JSON artifact
-- the full redacted timeline markdown artifact
-- the full redacted runbook markdown artifact
-
-That leaves room for regressions such as:
-- placeholder placement drift inside markdown bullets/tables
-- section-order drift in redacted outputs while targeted assertions still pass
-- artifact-level formatting drift that keeps substrings intact but changes the actual handoff document shape
-
-Roadmap implication:
-- **ITK-030 is now the highest-leverage remaining task**.
-
-### 3) Parser work is still important, but now it is clearly hardening rather than first-line risk reduction
-`tests/test_parser.py` already covers the public parser behaviors that matter most:
-- JSON vs text parsing
-- deterministic dropped-line summaries/diagnostics
-- stdin/source labeling
-- provenance on successful events
-- streaming behavior and large-input summaries
-- current event contract keys
-
-What remains mostly indirect:
+What remains relatively indirect:
 - `_source_timestamp_provenance(...)`
 - `_build_parse_summary(...)`
 - `_build_dropped_line_diagnostic(...)`
-- explicit `source_order` propagation through parser helpers
+- explicit `source_order` propagation through `parse_lines_with_summary(...)`
 
 Roadmap implication:
-- parser helper hardening stays worthwhile, but it now sits behind the public/safety-facing redacted goldens.
+- **ITK-029 should now be first** because parser helpers still sit at the ingestion root used by every command.
 
-### 4) `utils.py` is still the smallest direct test surface in the ingestion stack
-`utils.py` remains tiny, but it still owns two behaviors that cascade through the whole CLI:
+### 2) The next best leverage is direct helper coverage for summary construction and parse-diagnostic redaction
+The repo already has strong end-to-end coverage for the public summary JSON contract and redacted outputs. What is still mostly indirect is the CLI helper layer that assembles the ranked summary payload and rewrites dropped-line diagnostics during `--redact`.
+
+Helpers still lacking focused direct coverage:
+- `_top_items(...)`
+- `_build_incident_summary(...)`
+- `_redact_parse_summary(...)`
+
+Why this matters:
+- `triage summary` is the machine-readable handoff surface for automation.
+- parse redaction is the main share-safe diagnostics path.
+- helper-level regressions here could stay annoyingly hard to localize even if broader contract tests eventually catch them.
+
+Roadmap implication:
+- **Add a new second-priority task for direct CLI summary/redaction helper coverage**.
+
+### 3) `utils.py` remains the smallest direct test surface in the ingestion stack
+`utils.py` is still tiny, but it owns behaviors that cascade through every parse path:
 - timestamp normalization / acceptance boundaries
 - correlation-ID extraction from unstructured text
 
-Current direct test posture is still narrow:
-- timestamp normalization has a small focused suite
-- `extract_correlation_id(...)` is still validated mostly indirectly via parser/evidence behavior
+Current posture:
+- timestamp normalization has some focused direct coverage
+- `extract_correlation_id(...)` is still exercised mostly indirectly through parser/evidence paths
 
 Roadmap implication:
-- this remains a good low-noise backlog item after the more leveraged redaction and parser tasks.
+- keep this as the third task after parser hardening and CLI summary-helper hardening
+- it is still useful, but it is now clearly cleanup/hardening rather than first-line risk reduction
 
 ## Priority conclusions
-1. **ITK-030 should be first now**
-   - It protects a user-facing safety feature that is currently missing full-output contract freezing.
-   - It has concrete deliverables and clear focused verification commands.
+1. **ITK-029 should be first now**
+   - It strengthens the ingestion root that feeds every command.
+   - It closes the most important remaining indirect helper gap after ITK-030 landed.
 
-2. **ITK-029 should remain second**
-   - Parser helper coverage still strengthens the ingestion root used by every command.
-   - The work is meaningful, but less leveraged than end-to-end redacted artifact protection.
+2. **ITK-032 should be second**
+   - It adds direct coverage for the helper layer behind the automation-facing summary contract and redacted parse diagnostics.
+   - It is a better next investment than generic utility cleanup because it protects more user-visible behavior.
 
-3. **ITK-031 should remain third**
-   - Utility-edge tests are cheap and useful, but they are now clearly cleanup/hardening compared with the higher-priority gaps above.
+3. **ITK-031 should be third**
+   - It is still worthwhile and concrete.
+   - It remains smaller-impact than the two higher-leverage helper hardening tasks above.
 
 ## Resulting active queue
-1. ITK-030 — full redacted golden fixtures for parse diagnostics, timeline, and runbook
-2. ITK-029 — parser helper coverage for provenance / diagnostics / source-order invariants
-3. ITK-031 — direct utility-edge coverage for timestamp normalization and correlation-ID extraction
+1. ITK-029 — parser helper coverage for provenance, diagnostics builders, and source-order propagation
+2. ITK-032 — direct CLI summary/redaction helper coverage for ordering and placeholder invariants
+3. ITK-031 — utility-edge coverage for timestamp normalization and correlation-ID extraction
 
 ## Assumptions
-- Prioritization is based on repo-local evidence and the currently documented CLI/test surfaces, not on a freshly generated coverage report.
-- The README-described product contract is still the intended public surface; no pending redesign docs were found in this pass.
+- Prioritization is based on repo-local evidence and the currently documented CLI/test surfaces, not on a freshly generated branch-coverage report.
 - `docs/status.md` remains the authoritative record of the latest completed engineering milestone.
-
-## Unknowns
-- No fresh branch-coverage report was generated in this maintenance pass, so the ranking is based on architecture/test-surface leverage rather than uncovered-line counts.
-- No external issue tracker, telemetry, or production incident history was consulted.
-- No new runtime tests were executed in this pass because the task was docs-only reprioritization, not implementation.
+- No product redesign docs or external issue tracker inputs were part of this maintenance pass.
 
 ## Risks / blockers to watch
-- **Redacted golden maintenance drag**: ITK-030 should use one small sensitive fixture so the goldens stay reviewable instead of turning into noisy blobs.
-- **Parser helper overfitting**: ITK-029 should lock documented invariants and public semantics, not incidental loop order or private implementation trivia.
-- **Utility-test duplication**: ITK-031 should complement parser tests, not recreate end-to-end coverage at the helper layer.
-- **Docs drift risk**: this repo relies on `docs/status.md`, `docs/ai_todo.md`, and `docs/deep_research_auto.md` staying in sync; future maintenance passes should refresh all three together when priorities shift.
+- **Parser-helper overfitting**: ITK-029 should lock documented invariants and public semantics, not private loop trivia.
+- **Summary-helper duplication**: ITK-032 should complement the contract/golden suites, not recreate them wholesale.
+- **Utility-test sprawl**: ITK-031 should stay focused on helper edge cases rather than rebuilding parser end-to-end tests from below.
+- **Docs drift risk**: this repo depends on `docs/status.md`, `docs/ai_todo.md`, and `docs/deep_research_auto.md` staying synchronized whenever the queue changes.
 
 ## Why this refresh was needed
-The previous deep-research note was one pass behind the live repo. Specifically, it still assumed:
-- a docs-dirty working tree
-- pre-ITK-028 test/module counts
-- parity as the next missing seam instead of a completed regression surface
+The previous note was one pass behind the live repo. It still described:
+- ITK-030 as the top missing task even though it is now complete
+- pre-refresh conclusions about redacted fixtures being absent
+- a shorter open queue than the requested 3-7 actionable items
 
-This refresh brings the research note back in line with the current repo state and makes the next coding pass unambiguous: start with ITK-030.
+This refresh brings the research note back in line with the actual repo state and makes the next coding pass unambiguous: start with ITK-029.
