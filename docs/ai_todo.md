@@ -2,64 +2,67 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-12 18:09 UTC):
-- `git status --short --branch` ✅ docs-only working tree in this maintenance pass; no source-file changes were introduced for this refresh
-- `docs/status.md` ✅ exists and records ITK-029 plus ITK-030 as complete; `Next` still points to ITK-032
-- `docs/critical_todo.md` ✅ exists and still has no open critical items
-- `docs/ai_todo.md` ✅ exists and was refreshed because the active queue needed to stay concrete, prioritized, and within the requested 3-7 open items
-- `docs/deep_research_auto.md` ✅ exists and is refreshed in the same pass so the background note matches the live queue again
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-12 UTC):
+- `git status --short --branch` ✅ clean on entry to this docs-only maintenance pass (`## main...origin/main`)
+- `docs/status.md` ✅ exists
+- `docs/critical_todo.md` ✅ exists
+- `docs/ai_todo.md` ✅ exists
+- `docs/deep_research_auto.md` ✅ exists
+- `docs/user_todo.md` ✅ exists and has no open checkbox items
 - Current repo facts from this maintenance pass:
-  - the package remains intentionally compact and layered: `parser.py` + `utils.py` ingest, `cli.py` orchestrates commands/strict gates, `evidence.py` + `redaction.py` provide shared semantics, and `timeline.py` / `runbook.py` render operator-facing markdown
-  - current repo footprint is still focused enough for coverage-first hardening: 10 source modules, 11 top-level test modules, 138 top-level test functions, and 15 golden fixtures
+  - the package remains intentionally compact and layered: `parser.py` + `utils.py` ingest, `cli.py` owns operator-facing command flow and strict gates, `evidence.py` + `redaction.py` provide shared semantics, and `timeline.py` / `runbook.py` render operator-facing markdown
+  - repo footprint remains small enough for coverage-first hardening: 10 source modules, 11 top-level test modules, 142 top-level test functions, and 18 tracked fixture files under `tests/fixtures/`
   - dedicated helper suites already exist for shared CLI plumbing, evidence logic, and redaction behavior (`tests/test_cli_helpers.py`, `tests/test_evidence.py`, `tests/test_redaction.py`)
-  - dedicated contract/golden coverage already exists for the current parse, summary, timeline, and runbook surfaces, including full redacted goldens for parse diagnostics, timeline markdown, and runbook markdown
-  - dedicated cross-surface parity coverage already exists in `tests/test_output_parity.py` and locks the highest-risk shared filtered-slice seam
-  - `cli.py` still lacks direct helper-focused tests for `_top_items(...)`, `_build_incident_summary(...)`, and `_redact_parse_summary(...)`, even though those helpers shape the automation-facing summary contract and redacted parse diagnostics behavior
-  - `tests/test_main.py` is still only a one-test entrypoint smoke check, and CLI version fallback plus file/stdin failure surfaces remain lightly or indirectly covered compared with the happy-path command suite
-  - `tests/test_utils.py` remains intentionally light and still covers less of the timestamp/correlation helper edge space than the parser stack depends on indirectly
-  - latest recorded verification in `docs/status.md` is `make test` ✅ (`143 passed`)
+  - dedicated contract/golden coverage already exists for parse, summary, timeline, and runbook surfaces, including redacted goldens and cross-surface parity coverage
+  - `tests/test_main.py` now covers both the monkeypatched `__main__` wire-up and direct `python -m triage_toolkit` subprocess behavior for `--version` plus a stable missing-file failure path
+  - `tests/test_utils.py` still has only five direct tests and no direct `extract_correlation_id(...)` coverage
+  - `tests/test_cli.py` still covers `_get_version()`, `--version`, and broader operator-facing input/stdin paths, while `tests/test_cli_helpers.py` now directly locks `_read_events_with_summary(...)` and `_read_events_from_stdin(...)` call-shape/error mapping behavior
+  - `timeline.py` and `runbook.py` still have no focused coverage for markdown-formatting edge cases like pipe escaping in table cells or newline flattening in rendered operator-facing messages
+  - latest recorded verification in `docs/status.md` is `make test` ✅ (`153 passed`)
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-032 (P2): Add direct CLI summary/redaction helper coverage for automation-facing ordering invariants
-  - Why (impact): `triage summary` is the machine-readable handoff surface, and parse redaction is the main share-safe diagnostics path. The public contracts are covered end to end, but the core helper paths that assemble ranked summary payloads and redact dropped-line diagnostics are still mostly verified indirectly.
+- [x] ITK-033 (P2): Close the remaining direct CLI operator-surface coverage gaps for file-summary/stdin failure paths and entrypoint behavior
+  - Why (impact): the CLI is still the only operator interface. The repo already has direct coverage for `_get_version()`, `--version`, and `_read_events(...)`, but the file-summary and stdin helper paths in `cli.py` still rely more on indirect command coverage than on focused helper assertions, and `tests/test_main.py` is still barely more than a smoke wire-up.
   - DoD:
-    - Expand `tests/test_cli_helpers.py` to cover `_top_items(...)` ordering/tie behavior and `_build_incident_summary(...)` for `incident_window`, `event_count`, `error_count`, `top_components`, `top_error_signatures`, `evidence_by_source`, and `correlation_id_coverage` across mixed evidence/non-evidence event sets.
-    - Add direct `_redact_parse_summary(...)` coverage proving deterministic placeholder reuse inside diagnostics and no-op behavior when diagnostics are absent.
-    - Keep assertions aligned with the documented CLI/README contract rather than incidental dict-construction trivia beyond documented ordering.
-  - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py`
-    - `.venv/bin/python -m pytest -q tests/test_summary_contract.py`
-    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary or redact"`
-    - `make test`
-
-- [ ] ITK-033 (P2): Add direct CLI operator-surface coverage for version fallback and input failure paths
-  - Why (impact): the CLI is the only operator interface, so stable error handling matters almost as much as the happy path. File-read failures, bad UTF-8, and version-reporting regressions are still lightly or indirectly covered, with `tests/test_main.py` only proving module entrypoint wiring today.
-  - DoD:
-    - Add direct tests for `_get_version()` fallback behavior when package metadata is unavailable and for the `--version` callback exit path.
-    - Cover `_read_events(...)`, `_read_events_with_summary(...)`, and `_read_events_from_stdin(...)` failure surfaces for missing files, unreadable directories/permissions, and invalid UTF-8 input so user-facing failures stay actionable instead of devolving into raw tracebacks.
-    - Keep assertions on stable message fragments and exit behavior, not on Typer internals or platform-specific errno wording.
+    - Add direct helper tests for `_read_events_with_summary(...)` covering missing files, unreadable paths, directory inputs, invalid UTF-8, generic `OSError`, and the `diagnostics_limit` branching behavior.
+    - Add direct helper tests for `_read_events_from_stdin(...)` covering UTF-8 failure messaging plus `source_order` / `diagnostics_limit` passthrough into `parse_lines_with_summary(...)`.
+    - Broaden `tests/test_main.py` beyond pure module-entrypoint smoke so the `python -m triage_toolkit` surface stays distinct from lower-level helper tests and does not silently regress.
+    - Keep assertions on stable message fragments, exit behavior, and helper call shape rather than Typer internals or platform-specific errno wording.
   - Verification:
     - `.venv/bin/python -m pytest -q tests/test_main.py`
-    - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py -k "version or read_events or stdin"`
-    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "version or utf or input"`
+    - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py -k "read_events_with_summary or read_events_from_stdin"`
+    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "version or input or stdin"`
     - `make test`
 
 - [ ] ITK-031 (P3): Add direct utility-edge coverage for timestamp normalization and correlation-ID extraction helpers
-  - Why (impact): `utils.py` is tiny but sits under every parse path. Its current direct test surface is still narrow relative to how much parser behavior depends on it, especially for correlation-ID extraction and timestamp-shape edge cases.
+  - Why (impact): `utils.py` is tiny but sits under every parse path. Its direct test surface is still much smaller than the parser stack depends on indirectly, especially for supported correlation-ID patterns and timestamp-shape edges.
   - DoD:
     - Expand `tests/test_utils.py` to cover `extract_correlation_id(...)` for supported `cid=` / `correlation_id=` message patterns plus clear non-match cases.
-    - Add timestamp helper cases for microseconds, naive vs offset-aware inputs, `T` vs space separators, and invalid offset/timestamp shapes.
-    - Keep the suite focused on documented helper behavior rather than duplicating end-to-end parser tests wholesale.
+    - Add timestamp helper cases for microseconds, naive vs offset-aware inputs, `T` vs space separators, trailing `Z`, and invalid offset/timestamp shapes.
+    - Keep the suite focused on documented helper behavior rather than rebuilding parser end-to-end tests from below.
   - Verification:
     - `.venv/bin/python -m pytest -q tests/test_utils.py`
     - `.venv/bin/python -m pytest -q tests/test_parser.py -k "timestamp or correlation"`
+    - `make test`
+
+- [ ] ITK-034 (P3): Add focused markdown-renderer edge coverage for timeline/runbook safety and readability
+  - Why (impact): the human-facing timeline and runbook outputs are already covered by happy-path and golden tests, but they still lack targeted assertions for formatting edge cases that can quietly degrade operator handoff quality, especially messages containing pipe characters or embedded newlines.
+  - DoD:
+    - Add timeline coverage proving event/source cells escape literal `|` characters so markdown tables do not corrupt on real log messages or unusual source labels.
+    - Add timeline and runbook coverage proving embedded newlines are flattened to single-line rendered messages/examples instead of breaking table rows or bullet structure.
+    - Keep provenance fallback assertions explicit where rendered surfaces should still show `n/a` when no source metadata is available.
+    - Prefer narrow rendered-fragment assertions over unrelated full-golden rewrites.
+  - Verification:
+    - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "pipe or newline or source"`
+    - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "newline or source"`
     - `make test`
 
 ---
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-032 (P2): Add direct CLI summary/redaction helper coverage for automation-facing ordering invariants
 - [x] ITK-029 (P2): Tighten parser helper coverage for provenance extraction, diagnostics builders, and source-order propagation
 - [x] ITK-030 (P1): Add full redacted golden fixtures for parse diagnostics, timeline, and runbook outputs
 - [x] ITK-028 (P1): Add a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice

@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-033 completed (direct CLI operator-surface coverage now locks file-summary/stdin failure paths and module-entrypoint behavior):
+  - Expanded `tests/test_cli_helpers.py` with focused helper coverage for `_read_events_with_summary(...)` and `_read_events_from_stdin(...)`, including stable error mapping for missing/unreadable/directory/invalid-UTF-8/generic-`OSError` paths plus explicit assertions on `diagnostics_limit`, `source_order`, and stdin passthrough into `parse_lines_with_summary(...)`.
+  - Broadened `tests/test_main.py` from a single monkeypatched smoke wire-up into a distinct module-entrypoint surface check that now exercises `python -m triage_toolkit --version` and `python -m triage_toolkit parse missing-file.log --out -` via subprocess, keeping stable exit codes and operator-facing error fragments honest outside the lower-level Typer runner tests.
+  - Kept the milestone coverage-only: no production code or public CLI contract changes were required because the existing helper and entrypoint behavior already matched the intended operator surface.
+- Why:
+  - The remaining direct CLI blind spots were concentrated in helper-level failure plumbing and the standalone module entrypoint, so this closes a regression gap where operator-facing failures could drift even while broader command tests still passed.
+- Risks / follow-ups:
+  - This milestone intentionally stayed inside targeted test files; the next queued work moves down-stack into direct utility-edge coverage for timestamp normalization and correlation-ID extraction in ITK-031.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_main.py` ✅ (3 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py -k "read_events_with_summary or read_events_from_stdin"` ✅ (4 passed, 11 deselected)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "version or input or stdin"` ✅ (20 passed, 39 deselected)
+  - `make lint` ✅
+  - `make test` ✅ (153 passed)
 - ITK-032 completed (CLI summary/redaction helper coverage now directly locks automation-facing ordering invariants):
   - Expanded `tests/test_cli_helpers.py` with direct helper coverage for `_top_items(...)`, `_build_incident_summary(...)`, and `_redact_parse_summary(...)`.
   - Added ranking assertions for count/name tie behavior, machine-readable summary fields across a mixed evidence/non-evidence event slice, and deterministic placeholder reuse across redacted dropped-line diagnostics.
@@ -172,4 +186,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Resume ITK-033 by adding direct CLI operator-surface coverage for version fallback and input failure paths.
+- Resume ITK-031 by adding direct utility-edge coverage for timestamp normalization and correlation-ID extraction helpers.

@@ -490,6 +490,113 @@ def test_read_events_for_parse_rejects_duplicate_stdin_sources(monkeypatch: pyte
 
 
 
+def test_read_events_with_summary_maps_parse_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    sample = tmp_path / "sample.log"
+    sample.write_text("x\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        cli_module,
+        "_fail",
+        lambda message: (_ for _ in ()).throw(RuntimeError(message)),
+    )
+
+    cases = [
+        (FileNotFoundError(), f"Input file not found: {sample}"),
+        (PermissionError(), f"Input file is not readable: {sample}"),
+        (IsADirectoryError(), f"Input path is a directory, expected a file: {sample}"),
+        (
+            UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+            f"Input file is not valid UTF-8 text: {sample}",
+        ),
+        (OSError("disk failure"), f"Could not read input file '{sample}': disk failure"),
+    ]
+
+    for error, expected in cases:
+
+        def _raise(_path: Path, **_kwargs: object):
+            raise error
+
+        monkeypatch.setattr(cli_module, "parse_file_with_summary", _raise)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            cli_module._read_events_with_summary(sample, source_order=7, diagnostics_limit=2)
+
+        assert expected in str(exc_info.value)
+
+
+
+def test_read_events_with_summary_toggles_diagnostics_limit_passthrough(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    sample = tmp_path / "sample.log"
+    sample.write_text("x\n", encoding="utf-8")
+    call_history: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_parse_file_with_summary(path: Path, **kwargs: object):
+        call_history.append((path, kwargs))
+        return ["parsed-event"], {"parsed_lines": 1}
+
+    monkeypatch.setattr(cli_module, "parse_file_with_summary", fake_parse_file_with_summary)
+
+    assert cli_module._read_events_with_summary(sample, source_order=3, diagnostics_limit=0) == (
+        ["parsed-event"],
+        {"parsed_lines": 1},
+    )
+    assert cli_module._read_events_with_summary(sample, source_order=4, diagnostics_limit=2) == (
+        ["parsed-event"],
+        {"parsed_lines": 1},
+    )
+    assert call_history == [
+        (sample, {"source_order": 3}),
+        (sample, {"source_order": 4, "diagnostics_limit": 2}),
+    ]
+
+
+
+def test_read_events_from_stdin_maps_utf8_failure(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        cli_module,
+        "_fail",
+        lambda message: (_ for _ in ()).throw(RuntimeError(message)),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "_read_stdin_lines",
+        lambda: (_ for _ in ()).throw(UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")),
+    )
+
+    with pytest.raises(RuntimeError, match="Standard input is not valid UTF-8 text."):
+        cli_module._read_events_from_stdin(source_order=2, diagnostics_limit=1)
+
+
+
+def test_read_events_from_stdin_passes_source_metadata_to_parse_lines(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    call_args: dict[str, object] = {}
+
+    monkeypatch.setattr(cli_module, "_read_stdin_lines", lambda: ["line-a", "line-b"])
+
+    def fake_parse_lines_with_summary(lines: list[str], **kwargs: object):
+        call_args["lines"] = list(lines)
+        call_args.update(kwargs)
+        return ["parsed-event"], {"parsed_lines": 1}
+
+    monkeypatch.setattr(cli_module, "parse_lines_with_summary", fake_parse_lines_with_summary)
+
+    assert cli_module._read_events_from_stdin(source_order=5, diagnostics_limit=3) == (
+        ["parsed-event"],
+        {"parsed_lines": 1},
+    )
+    assert call_args == {
+        "lines": ["line-a", "line-b"],
+        "source_path": "-",
+        "source_order": 5,
+        "diagnostics_limit": 3,
+    }
+
+
+
 def test_write_output_writes_to_stdout_without_extra_newline(capsys: pytest.CaptureFixture[str]):
     cli_module._write_output("-", "hello")
 
