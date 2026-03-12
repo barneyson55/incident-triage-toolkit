@@ -9,6 +9,18 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-031 completed (direct utility-edge coverage now locks timestamp normalization and correlation-ID helper behavior):
+  - Expanded `tests/test_utils.py` with focused helper-only coverage for naive and offset-aware timestamp normalization across `T` and space separators, microsecond precision, trailing `Z`, and invalid timestamp/offset shapes.
+  - Added direct `extract_correlation_id(...)` coverage for supported `cid=` / `correlation_id=` message patterns plus explicit non-match boundaries, keeping the milestone inside `tests/test_utils.py` with no production-code or contract changes.
+- Why:
+  - `utils.py` sits underneath every parse path, so helper-level tests now catch timestamp/correlation regressions earlier and more locally than parser/CLI coverage alone.
+- Risks / follow-ups:
+  - This milestone intentionally stayed coverage-only; the next queued work is ITK-035 to lock heterogeneous JSON alias handling and correlation-ID precedence directly in `tests/test_parser.py`.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_utils.py` ✅ (26 passed)
+  - `.venv/bin/python -m pytest -q tests/test_parser.py -k "timestamp or correlation"` ✅ (6 passed, 21 deselected)
+  - `make lint` ✅
+  - `make test` ✅ (174 passed)
 - ITK-033 completed (direct CLI operator-surface coverage now locks file-summary/stdin failure paths and module-entrypoint behavior):
   - Expanded `tests/test_cli_helpers.py` with focused helper coverage for `_read_events_with_summary(...)` and `_read_events_from_stdin(...)`, including stable error mapping for missing/unreadable/directory/invalid-UTF-8/generic-`OSError` paths plus explicit assertions on `diagnostics_limit`, `source_order`, and stdin passthrough into `parse_lines_with_summary(...)`.
   - Broadened `tests/test_main.py` from a single monkeypatched smoke wire-up into a distinct module-entrypoint surface check that now exercises `python -m triage_toolkit --version` and `python -m triage_toolkit parse missing-file.log --out -` via subprocess, keeping stable exit codes and operator-facing error fragments honest outside the lower-level Typer runner tests.
@@ -186,4 +198,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Resume ITK-031 by adding direct utility-edge coverage for timestamp normalization and correlation-ID extraction helpers.
+- Resume ITK-035 by locking heterogeneous JSON-ingestion aliases and correlation-ID precedence with direct parser coverage.
