@@ -1,0 +1,2 @@
+2025-01-01T00:00:02Z ERROR api: timeout on checkout cid=c-2
+2025-01-01T00:00:03Z INFO api: recovered cid=c-2

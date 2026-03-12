@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-028 completed (fixture-driven cross-surface parity coverage now locks filtered-slice alignment):
+  - Added `tests/test_output_parity.py` with a dedicated parity harness that drives the same filtered inputs through `triage summary`, `triage timeline`, and `triage runbook`, then compares first/last observed timestamps, evidence-event counts, top-signature ordering, and evidence-by-source ordering across the three surfaces.
+  - Added compact deterministic fixtures under `tests/fixtures/parity/` for a multi-file filtered slice plus a file+stdin filtered slice, and included an explicit empty-slice parity case so the markdown empty states stay aligned with the summary JSON empty contract.
+  - Kept the change surface minimal: no production code or public CLI contract changes were needed because the shared filter/evidence helpers were already behaving correctly; this milestone adds the missing regression net only.
+- Why:
+  - `summary`, `timeline`, and `runbook` now share increasingly rich ordering/evidence semantics, so a dedicated parity suite catches cross-surface drift that command-specific tests and goldens can miss.
+- Risks / follow-ups:
+  - Redacted full-output goldens are still queued next in ITK-030.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_output_parity.py` ✅ (3 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary or timeline or runbook"` ✅ (30 passed)
+  - `make lint` ✅
+  - `make test` ✅ (133 passed)
 - ITK-027 completed (shared redaction helpers now have direct unit coverage):
   - Added `tests/test_redaction.py` with focused helper coverage for deterministic identifier placeholder generation, email/IPv4/IPv6 placeholder reuse, keyed identifier ordering (`cid=` / `trace_id=` / `request_id=`), JWT and mixed-token secret redaction, and the documented false-positive boundaries for standalone long tokens.
   - Locked ordering-sensitive behavior where keyed identifiers are rewritten to `[redacted-id:...]` before broader UUID/JWT/secret passes, so key names stay intact and sensitive values are not double-redacted.
@@ -112,10 +125,10 @@
   - `make test` ✅ (97 passed)
 
 ## Latest blocker
-- ITK-028 is blocked before implementation:
-  - The mandated coding-agent path (`codex exec --full-auto ...`) failed immediately with `401 Unauthorized: Missing bearer or basic authentication in header` in `/home/node/.openclaw/workspace/projects/auto-senior-pm/repos/incident-triage-toolkit`.
-  - No product/test files were changed for ITK-028, and no verification suite was run because the coding agent never reached repository work.
-  - Required human action is recorded in `docs/user_todo.md`.
+- Coding-agent auth blocker cleared on 2026-03-12 UTC:
+  - Codex CLI was switched from failing API-key flow to working ChatGPT device-auth / OAuth via `codex login --device-auth`.
+  - Fresh verification now succeeds in the repo with `codex exec --full-auto 'Reply with exactly the word OK and nothing else.'` returning `OK`.
+  - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Restore coding-agent auth, then resume ITK-028 by adding a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice.
+- Resume ITK-030 by adding full redacted golden fixtures for parse diagnostics, timeline output, and runbook output.

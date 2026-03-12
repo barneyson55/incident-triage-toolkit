@@ -1,0 +1,3 @@
+2025-01-01T00:00:01Z INFO api: boot cid=boot-1
+2025-01-01T00:00:02Z ERROR api: timeout on checkout cid=c-2
+2025-01-01T00:00:04Z ERROR api: timeout on checkout cid=c-3
