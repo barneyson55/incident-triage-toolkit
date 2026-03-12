@@ -1,0 +1,4 @@
+noise alice@example.com 10.2.3.4 cid=550e8400-e29b-41d4-a716-446655440000 token=AbCdEfGhIjKlMnOpQrSt123456
+{"timestamp":"bad-ts","message":"broken alice@example.com 10.2.3.4 cid=550e8400-e29b-41d4-a716-446655440000 token=AbCdEfGhIjKlMnOpQrSt123456"}
+2025-03-02T10:00:00Z ERROR api: notify alice@example.com from 10.2.3.4 cid=550e8400-e29b-41d4-a716-446655440000 token=AbCdEfGhIjKlMnOpQrSt123456
+2025-03-02T10:00:01Z ERROR worker: timeout alice@example.com at 10.2.3.4 cid=550e8400-e29b-41d4-a716-446655440000 token=AbCdEfGhIjKlMnOpQrSt123456

@@ -14,10 +14,11 @@ runner = CliRunner()
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 
 
-def _extract_redaction_placeholder(text: str, kind: str) -> str:
-    match = re.search(rf"\[redacted-{kind}:[a-z]+\]", text)
-    assert match is not None
-    return match.group(0)
+_REDACTION_PLACEHOLDER_RE = re.compile(r"\[redacted-(?:email|ip|id|secret):[a-z]+\]")
+
+
+def _redaction_placeholders(text: str) -> set[str]:
+    return set(_REDACTION_PLACEHOLDER_RE.findall(text))
 
 
 def _expected_version() -> str:
@@ -253,58 +254,35 @@ def test_parse_stdin_only_uses_stable_source_label_for_diagnostics():
     ]
 
 
-def test_redaction_placeholders_are_stable_across_parse_timeline_and_runbook(tmp_path):
-    sensitive_email = "alice@example.com"
-    sensitive_ip = "10.2.3.4"
-    sensitive_id = "550e8400-e29b-41d4-a716-446655440000"
-    sensitive_secret = "AbCdEfGhIjKlMnOpQrSt123456"
-    sample = tmp_path / "sample.log"
-    sample.write_text(
-        "\n".join(
-            [
-                f"bad {sensitive_email} {sensitive_ip} cid={sensitive_id} token={sensitive_secret}",
-                (
-                    "2025-01-01T00:00:01Z ERROR api: notify "
-                    f"{sensitive_email} from {sensitive_ip} cid={sensitive_id} token={sensitive_secret}"
-                ),
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+def test_redacted_golden_outputs_are_stable_across_parse_timeline_and_runbook():
+    sample = GOLDEN_DIR / "redacted_input.log"
+    expected_parse = (GOLDEN_DIR / "parse_output_redacted.json").read_text(encoding="utf-8")
+    expected_timeline = (GOLDEN_DIR / "timeline_output_redacted.md").read_text(encoding="utf-8")
+    expected_runbook = (GOLDEN_DIR / "runbook_output_redacted.md").read_text(encoding="utf-8")
 
     parse_result = runner.invoke(
         app,
-        ["parse", str(sample), "--out", "-", "--diagnostics-limit", "1", "--redact"],
+        ["parse", str(sample), "--out", "-", "--diagnostics-limit", "2", "--redact"],
     )
     timeline_result = runner.invoke(app, ["timeline", str(sample), "--out", "-", "--redact"])
     runbook_result = runner.invoke(
         app,
-        ["runbook", str(sample), "--out", "-", "--title", "Incident: Redacted", "--redact"],
+        ["runbook", str(sample), "--out", "-", "--title", "Incident: Redacted Golden", "--redact"],
     )
 
     assert parse_result.exit_code == 0
     assert timeline_result.exit_code == 0
     assert runbook_result.exit_code == 0
+    assert parse_result.stdout == expected_parse
+    assert timeline_result.stdout == expected_timeline
+    assert runbook_result.stdout == expected_runbook
 
-    parse_payload = json.loads(parse_result.stdout)
-    diagnostic = parse_payload["parse_summary"]["dropped_line_diagnostics"][0]["raw_line"]
-    placeholders = {
-        kind: _extract_redaction_placeholder(diagnostic, kind)
-        for kind in ["email", "ip", "id", "secret"]
-    }
+    parse_placeholders = _redaction_placeholders(parse_result.stdout)
+    timeline_placeholders = _redaction_placeholders(timeline_result.stdout)
+    runbook_placeholders = _redaction_placeholders(runbook_result.stdout)
 
-    assert parse_payload["parse_summary"]["dropped_lines"] == 1
-    assert parse_payload["parse_summary"]["parsed_lines"] == 1
-
-    for sensitive_value in [sensitive_email, sensitive_ip, sensitive_id, sensitive_secret]:
-        assert sensitive_value not in diagnostic
-        assert sensitive_value not in timeline_result.stdout
-        assert sensitive_value not in runbook_result.stdout
-
-    for placeholder in placeholders.values():
-        assert placeholder in timeline_result.stdout
-        assert placeholder in runbook_result.stdout
+    assert parse_placeholders == timeline_placeholders == runbook_placeholders
+    assert len(parse_placeholders) == 4
 
 
 def test_parse_multiple_inputs_with_stdin_preserve_cli_input_order_for_tied_timestamps(tmp_path):

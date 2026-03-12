@@ -181,6 +181,16 @@ def test_timeline_redaction_masks_rendered_messages_and_signatures_deterministic
     assert "[redacted-secret:" in timeline
 
 
+def test_timeline_redacted_golden_output_is_deterministic():
+    sample = GOLDEN_DIR / "redacted_input.log"
+    expected = (GOLDEN_DIR / "timeline_output_redacted.md").read_text(encoding="utf-8")
+
+    events, _ = parse_file_with_summary(sample)
+    actual = build_timeline(events, redact=True)
+
+    assert actual == expected
+
+
 def test_timeline_golden_output_is_deterministic():
     sample = GOLDEN_DIR / "mixed_input.log"
     expected = (GOLDEN_DIR / "timeline_output.md").read_text(encoding="utf-8")

@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-030 completed (full redacted golden fixtures now freeze parse diagnostics, timeline markdown, and runbook markdown):
+  - Added a compact shared sensitive fixture at `tests/fixtures/golden/redacted_input.log` plus matching redacted golden artifacts: `tests/fixtures/golden/parse_output_redacted.json`, `tests/fixtures/golden/timeline_output_redacted.md`, and `tests/fixtures/golden/runbook_output_redacted.md`.
+  - Updated `tests/test_cli.py`, `tests/test_timeline.py`, and `tests/test_runbook.py` so the redacted surfaces are now compared against full golden outputs instead of only a few substring checks; the CLI test also asserts the same four redaction placeholders are reused across parse, timeline, and runbook outputs.
+  - Tightened `triage_toolkit/evidence.py` so redacted error-signature rendering preserves the same placeholder hashes as parse diagnostics and rendered event messages, even for mixed-case secret-like tokens.
+- Why:
+  - The redacted sharing path is now protected at the full-output level, which catches section-order drift, placeholder drift, and formatting regressions that helper tests or substring assertions could miss.
+- Risks / follow-ups:
+  - The new goldens intentionally cover one compact single-source sensitive fixture; parser-helper coverage for provenance/diagnostic builders remains queued next in ITK-029.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "redact"` ✅ (1 passed)
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "redact"` ✅ (2 passed)
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "redact"` ✅ (2 passed)
+  - `make lint` ✅
+  - `make test` ✅ (135 passed)
 - ITK-028 completed (fixture-driven cross-surface parity coverage now locks filtered-slice alignment):
   - Added `tests/test_output_parity.py` with a dedicated parity harness that drives the same filtered inputs through `triage summary`, `triage timeline`, and `triage runbook`, then compares first/last observed timestamps, evidence-event counts, top-signature ordering, and evidence-by-source ordering across the three surfaces.
   - Added compact deterministic fixtures under `tests/fixtures/parity/` for a multi-file filtered slice plus a file+stdin filtered slice, and included an explicit empty-slice parity case so the markdown empty states stay aligned with the summary JSON empty contract.
@@ -131,4 +145,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Resume ITK-030 by adding full redacted golden fixtures for parse diagnostics, timeline output, and runbook output.
+- Resume ITK-029 by tightening parser helper coverage for provenance extraction, diagnostics builders, and source-order propagation.

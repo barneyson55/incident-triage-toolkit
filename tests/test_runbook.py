@@ -224,6 +224,16 @@ def test_runbook_redaction_masks_signatures_examples_and_correlation_ids_determi
     assert "[redacted-secret:" in runbook
 
 
+def test_runbook_redacted_golden_output_is_deterministic():
+    sample = GOLDEN_DIR / "redacted_input.log"
+    expected = (GOLDEN_DIR / "runbook_output_redacted.md").read_text(encoding="utf-8")
+
+    events, _ = parse_file_with_summary(sample)
+    actual = build_runbook(events, "Incident: Redacted Golden", redact=True)
+
+    assert actual == expected
+
+
 def test_runbook_golden_output_is_deterministic():
     sample = GOLDEN_DIR / "mixed_input.log"
     expected = (GOLDEN_DIR / "runbook_output.md").read_text(encoding="utf-8")

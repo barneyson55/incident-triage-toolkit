@@ -66,10 +66,12 @@ def normalize_error_message(message: str) -> str:
 
 
 def render_error_signature(message: str, *, redact: bool = False) -> str:
-    text = message.lower().strip()
+    text = message.strip()
     if redact:
         text = redact_text(text)
+        text = text.lower()
     else:
+        text = text.lower()
         text = _CORR_RE.sub("cid=<id>", text)
     text = _DIGIT_RE.sub("#", text)
     return text

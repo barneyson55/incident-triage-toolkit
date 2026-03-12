@@ -2,57 +2,34 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-12 13:49 UTC):
-- `git status --short --branch` ⚠️ `main...origin/main` with pre-existing docs-only changes already present in `docs/status.md` and `docs/user_todo.md`
-- `docs/status.md` ✅ exists and records ITK-027 as complete while explicitly queuing ITK-028 next
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-12 15:07 UTC):
+- `git status --short --branch` ✅ `main...origin/main` (working tree clean in this maintenance pass)
+- `docs/status.md` ✅ exists and records ITK-030 as complete while explicitly queuing ITK-029 next
 - `docs/critical_todo.md` ✅ exists and still has no open critical items
-- `docs/ai_todo.md` ✅ exists and needed refresh because the repo-fact snapshot was one maintenance pass behind and still treated parser-helper hardening as clearly ahead of all remaining public-surface gaps
-- `docs/deep_research_auto.md` ✅ exists and was refreshed to reflect the current architecture/coverage map
+- `docs/ai_todo.md` ✅ exists and needed refresh because the previous basis block was one maintenance pass behind on repo facts (it still described a docs-dirty tree and pre-ITK-028 test counts)
+- `docs/deep_research_auto.md` ✅ exists and was refreshed in the same pass so the background note matches the live queue again
 - Current repo facts from this maintenance pass:
-  - the package is still intentionally small and layered: `parser.py` + `utils.py` ingest, `cli.py` orchestrates commands/strict gates, `evidence.py` + `redaction.py` provide shared semantics, and `timeline.py` / `runbook.py` render operator-facing markdown
-  - current repo footprint is compact but mature for its size: 10 source modules, 10 test modules, 130 test functions, and 11 golden fixtures
+  - the package remains intentionally small and layered: `parser.py` + `utils.py` ingest, `cli.py` orchestrates commands/strict gates, `evidence.py` + `redaction.py` provide shared semantics, and `timeline.py` / `runbook.py` render operator-facing markdown
+  - current repo footprint is compact but mature for its size: 10 source modules, 11 test modules, 135 test functions, and 15 golden fixtures
   - dedicated helper suites already exist for shared CLI plumbing, evidence logic, and redaction behavior (`tests/test_cli_helpers.py`, `tests/test_evidence.py`, `tests/test_redaction.py`)
   - dedicated contract/golden coverage already exists for the current non-redacted `parse`, `summary`, `timeline`, and `runbook` surfaces
-  - there is still no dedicated cross-surface parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice (`tests/test_output_parity.py` is still missing)
-  - there are still no redacted golden fixtures freezing the full rendered outputs for parse diagnostics, timeline markdown, and runbook markdown
+  - dedicated cross-surface parity coverage now exists in `tests/test_output_parity.py` and locks the highest-risk shared filtered-slice seam
+  - dedicated redacted golden coverage now exists for parse diagnostics, timeline markdown, and runbook markdown via one compact sensitive fixture shared across all three surfaces
   - parser coverage is already broad at the public-behavior level (`tests/test_parser.py`), but helper-builder invariants like explicit provenance extraction, dropped-line diagnostic builders, and `source_order` propagation are still protected mostly through broader command tests
   - `tests/test_utils.py` remains intentionally light and currently covers timestamp normalization only; direct `extract_correlation_id(...)` behavior is still mostly exercised indirectly through parser/evidence tests
-  - latest recorded verification in `docs/status.md` is `make test` ✅ (`130 passed`)
+  - latest recorded verification in `docs/status.md` is `make test` ✅ (`135 passed`)
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-028 (P1): Add a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
-  - Why (impact): the repo now depends on shared evidence/filtering/order semantics across three operator-facing surfaces. Individual command tests can all pass while incident windows, signature ranking, source concentration, or empty-slice behavior drift across JSON vs markdown outputs. A parity suite is the highest-leverage missing regression net.
-  - DoD:
-    - Add a dedicated parity test module (for example `tests/test_output_parity.py`) that drives the same multi-input fixture through `summary`, `timeline`, and `runbook`.
-    - Assert the same filtered slice yields matching first/last observed timestamps, evidence-event counts, top signature ordering, and source concentration ordering across all three surfaces.
-    - Include at least one file+stdin case and one empty-slice case so parity holds for the two highest-risk shared paths.
-  - Verification:
-    - `pytest -q tests/test_output_parity.py`
-    - `pytest -q tests/test_cli.py -k "summary or timeline or runbook"`
-    - `make test`
-
-- [ ] ITK-030 (P2): Add full redacted golden fixtures for parse diagnostics, timeline, and runbook outputs
-  - Why (impact): redaction is now a user-facing sharing/safety feature, but the repo still freezes it only through targeted substring assertions. Full golden fixtures would catch section-order drift, placeholder-placement drift, and markdown/JSON formatting regressions that helper tests will not see.
-  - DoD:
-    - Add compact golden fixtures for `triage parse --redact --diagnostics-limit N`, `triage timeline --redact`, and `triage runbook --redact`.
-    - Assert stable placeholder reuse across the full outputs rather than only checking a few substrings.
-    - Reuse one compact sensitive fixture so the goldens stay reviewable and cheap to maintain.
-  - Verification:
-    - `pytest -q tests/test_cli.py -k "redact"`
-    - `pytest -q tests/test_timeline.py -k "redact"`
-    - `pytest -q tests/test_runbook.py -k "redact"`
-    - `make test`
-
 - [ ] ITK-029 (P2): Tighten parser helper coverage for provenance extraction, diagnostics builders, and source-order propagation
-  - Why (impact): `triage_toolkit/parser.py` is still the ingestion root for every command. Public parser behavior is already decently covered, but several small helper/builder paths still fail only indirectly even though they control provenance metadata, drop diagnostics, and source-order propagation used later by the shared ordering helpers.
+  - Why (impact): `triage_toolkit/parser.py` is still the ingestion root for every command. Public parser behavior is already well covered, but several small helper/builder paths still fail only indirectly even though they control provenance metadata, drop diagnostics, and source-order propagation used later by the shared ordering helpers.
   - DoD:
     - Expand parser-focused tests to cover `_source_timestamp_provenance`, `_build_parse_summary`, `_build_dropped_line_diagnostic`, and `source_order` propagation through `parse_lines_with_summary`.
     - Lock mixed JSON/text drop-reason boundaries so invalid JSON, non-object JSON, missing timestamps, invalid timestamps, blank lines, and unrecognized text stay classified as documented.
     - Keep expectations on public event/summary fields and deterministic ordering, not on incidental internal iteration details.
   - Verification:
-    - `pytest -q tests/test_parser.py -k "provenance or diagnostics or source_order or dropped_reason"`
-    - `pytest -q tests/test_cli.py -k "parse and provenance"`
+    - `.venv/bin/python -m pytest -q tests/test_parser.py`
+    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse and provenance"`
     - `make test`
 
 - [ ] ITK-031 (P3): Add direct utility-edge coverage for timestamp normalization and correlation-ID extraction helpers
@@ -62,14 +39,16 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
     - Add timestamp helper cases for microseconds, naive vs offset-aware inputs, `T` vs space separators, and invalid offset/timestamp shapes.
     - Keep the suite focused on documented helper behavior rather than duplicating end-to-end parser tests wholesale.
   - Verification:
-    - `pytest -q tests/test_utils.py`
-    - `pytest -q tests/test_parser.py -k "timestamp or correlation"`
+    - `.venv/bin/python -m pytest -q tests/test_utils.py`
+    - `.venv/bin/python -m pytest -q tests/test_parser.py -k "timestamp or correlation"`
     - `make test`
 
 ---
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-030 (P1): Add full redacted golden fixtures for parse diagnostics, timeline, and runbook outputs
+- [x] ITK-028 (P1): Add a fixture-driven parity suite proving `summary`, `timeline`, and `runbook` stay aligned on the same filtered incident slice
 - [x] ITK-027 (P1): Add direct unit coverage for shared redaction helpers and placeholder stability
 - [x] ITK-026 (P1): Add direct unit coverage for shared CLI ingestion, strict-gate, filter, and write-path helpers
 - [x] ITK-025 (P1): Add direct unit coverage for shared evidence and ranking helpers
