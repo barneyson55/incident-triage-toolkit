@@ -606,6 +606,57 @@ def test_parse_strict_stream_large_input_fails_when_drop_ratio_exceeds_threshold
     assert "drop_ratio=0.500000 exceeds max_drop_ratio=0.490000" in result.output
 
 
+@pytest.mark.parametrize(
+    ("command", "extra_args", "suffix"),
+    [
+        ("parse", [], ".json"),
+        ("summary", [], ".json"),
+        ("timeline", [], ".md"),
+        ("runbook", [], ".md"),
+    ],
+)
+def test_strict_out_failure_does_not_create_new_output_file(tmp_path, command, extra_args, suffix):
+    sample = tmp_path / "sample.log"
+    sample.write_text("not a log line\n", encoding="utf-8")
+    output = tmp_path / "nested" / f"strict-failure{suffix}"
+
+    result = runner.invoke(
+        app,
+        [command, str(sample), "--out", str(output), "--strict", *extra_args],
+    )
+
+    assert result.exit_code == 2
+    assert "Strict parse gate failed: parsed_lines == 0" in result.output
+    assert not output.exists()
+    assert not output.parent.exists()
+
+
+@pytest.mark.parametrize(
+    ("command", "extra_args", "suffix"),
+    [
+        ("parse", [], ".json"),
+        ("summary", [], ".json"),
+        ("timeline", [], ".md"),
+        ("runbook", [], ".md"),
+    ],
+)
+def test_strict_out_failure_does_not_overwrite_existing_output_file(tmp_path, command, extra_args, suffix):
+    sample = tmp_path / "sample.log"
+    sample.write_text("not a log line\n", encoding="utf-8")
+    output = tmp_path / f"existing{suffix}"
+    sentinel = "sentinel-output\n"
+    output.write_text(sentinel, encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [command, str(sample), "--out", str(output), "--strict", *extra_args],
+    )
+
+    assert result.exit_code == 2
+    assert "Strict parse gate failed: parsed_lines == 0" in result.output
+    assert output.read_text(encoding="utf-8") == sentinel
+
+
 def test_summary_stdout_returns_machine_readable_contract(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text(

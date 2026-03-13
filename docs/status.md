@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-041 completed (strict parse-gate failures are now proven file-safe across all write-capable CLI commands):
+  - Expanded `tests/test_cli.py` with focused parametrized regressions covering `parse`, `summary`, `timeline`, and `runbook` under `--strict --out <file>` failure conditions.
+  - Added one contract test that points each command at a nested, non-existent output path and asserts the strict gate exits with code `2`, emits the stable `parsed_lines == 0` error fragment, and leaves both the output file and its parent directory absent.
+  - Added a companion contract test that pre-seeds a sentinel output file for each command and asserts the same strict-gate failure leaves the existing file contents unchanged.
+- Why:
+  - Strict mode already failed before rendering, but there was no focused regression net proving failed `--strict` runs cannot create fresh artifacts or overwrite stale handoff files that operators might mistake for valid output.
+- Risks / follow-ups:
+  - This milestone is coverage-only and intentionally does not change product behavior; the next queued user-facing gap remains ITK-040 for runbook title / inline-code markdown safety around backticks and embedded newlines.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "strict and out"` ✅ (8 passed)
+  - `make lint` ✅
+  - `make test` ✅ (197 passed)
+
 - ITK-038 completed (README quickstart/write-path parity is now locked for `triage summary --out <file>` at the CLI contract layer):
   - Expanded `tests/test_cli.py` with a focused `test_summary_writes_output_file_and_reports_success(...)` regression that exercises the documented file-output path instead of stdout-only coverage.
   - The new test asserts the stable success message (`Wrote incident summary to <file>`) and locks the written JSON payload shape for `schema_version`, incident window, event/error counts, top components, top error signatures, evidence-by-source, correlation coverage, and the raw `parse_summary` contract.
