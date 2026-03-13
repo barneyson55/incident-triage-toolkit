@@ -9,6 +9,19 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-039 completed (the installed `triage` console script is now covered directly alongside the existing module entrypoint smoke tests):
+  - Expanded `tests/test_main.py` with two focused subprocess regressions for the installed `triage` command: one locks `triage --version`, and one locks the documented `triage parse ...` path for a stable missing-file operator error.
+  - Added a tiny `_triage_console_script()` helper in `tests/test_main.py` that resolves the console script from the active interpreter's scripts directory (`sysconfig.get_path("scripts")`) instead of hardcoding a repo- or platform-specific path, keeping the test resilient across the dev-install/virtualenv layout.
+  - Kept the milestone coverage-only and reused the existing version/error expectations already proven for `python -m triage_toolkit`, so this change stays squarely about wrapper parity rather than expanding the CLI contract.
+- Why:
+  - README quickstart leads with `triage ...`, so a broken installed console script would be a first-run regression for operators even if the lower-level `python -m triage_toolkit` path kept passing.
+- Risks / follow-ups:
+  - This milestone intentionally stays narrow to the installed script wrapper; the next queued gap is ITK-042 for explicit empty/no-evidence runbook fallbacks and direct markdown helper coverage.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_main.py -k "triage or console or version"` ✅ (4 passed, 1 deselected)
+  - `make lint` ✅
+  - `make test` ✅ (201 passed)
+
 - ITK-040 completed (runbook titles and inline-code markdown now stay readable when dynamic values contain embedded newlines or literal backticks):
   - Updated `triage_toolkit/markdown.py` with a small shared `markdown_code_span(...)` helper plus an optional backtick-escaping mode for plain markdown text, keeping the existing newline flattening and pipe escaping behavior intact.
   - Updated `triage_toolkit/runbook.py` so the H1 title now flattens embedded newlines and escapes literal backticks, while runbook inline-code surfaces (top signatures, representative correlation IDs, source labels/provenance, and code-styled level/component fields) now choose a safe code fence width automatically instead of assuming a single backtick wrapper.
@@ -283,4 +296,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Start ITK-040 by hardening the remaining runbook title / inline-code markdown safety for literal backticks and embedded newlines.
+- Start ITK-042 by locking explicit empty/no-evidence runbook fallbacks and direct `markdown_safe_text(...)` / `markdown_code_span(...)` helper coverage.

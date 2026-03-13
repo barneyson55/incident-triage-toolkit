@@ -11,43 +11,35 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 - `docs/user_todo.md` ✅ exists and has no open checkbox items
 - Latest recorded verification in `docs/status.md` remains green:
   - `make lint` ✅
-  - `make test` ✅ (`197 passed`)
+  - `make test` ✅ (`201 passed`)
 - Current repo facts from this maintenance pass:
-  - `docs/status.md` shows ITK-041 is complete, so strict-mode output-file safety is no longer an open priority
+  - `docs/status.md` shows ITK-039, ITK-040, and ITK-041 are complete, so the README-led console-script path plus the known runbook/strict-mode regressions should no longer be in the active queue
   - `docs/status.md` also confirms ITK-038 is complete, so README-advertised `triage summary --out <file>` parity is already locked
-  - `docs/critical_todo.md` has no build/security/data-loss emergency queued, so the highest-impact remaining work is concentrated in operator-facing markdown safety, real entrypoint parity, and a few intentionally thin helper/entrypoint seams
+  - `tests/test_main.py` now directly proves both `python -m triage_toolkit` and the installed `triage` console script against the same version and missing-file expectations
+  - Live `coverage report -m` still shows the largest remaining user-facing branch surface concentrated in `triage_toolkit/runbook.py` and the shared `triage_toolkit/markdown.py` helper, while the remaining parser/CLI misses are thin wrapper seams
+  - `docs/critical_todo.md` has no build/security/data-loss emergency queued, so the highest-impact remaining work is operator-facing runbook/markdown fallback coverage first, then tiny helper/entrypoint cleanup
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-040 (P1): Harden remaining markdown/code-span safety for runbook titles and backtick-heavy dynamic fields
-  - Why (impact): pipe/newline corruption is fixed, but `runbook.py` still renders several dynamic values inside inline-code spans and a raw H1 title. Literal backticks or embedded newlines in titles, signatures, correlation IDs, or source labels can still degrade the handoff artifact even when the underlying incident logic is correct.
+- [ ] ITK-042 (P2): Lock runbook empty/no-evidence fallbacks and direct markdown helper behavior
+  - Why (impact): `docs/status.md` closed the known pipe/newline/backtick rendering bugs, but the live branch surface still clusters in `runbook.py` and `markdown.py`. Empty/no-evidence runbooks and code-span/text sanitization are operator-facing artifacts, so regressions here create misleading handoff docs even when parsing is correct.
   - DoD:
-    - Add focused runbook coverage for titles containing embedded newlines or literal backticks, and for dynamic values rendered inside backticks (for example correlation IDs, source labels, and top signatures).
-    - Introduce the smallest shared markdown-safety adjustment needed so operator-facing runbook output stays readable and single-line where intended.
-    - Preserve the current explicit `n/a` provenance fallback and avoid broad markdown/golden churn outside the newly proven edge cases.
+    - Add focused `build_runbook(...)` coverage for truly empty inputs and for parsed-event slices with no error-like evidence, asserting the explicit Symptoms/Evidence/Checks/Workaround/Fix/Verification fallback text stays stable.
+    - Add direct helper coverage for `markdown_safe_text(...)` and `markdown_code_span(...)`, including CR/LF flattening, pipe escaping, optional backtick escaping, leading/trailing space handling, and safe fence widening for embedded backticks.
+    - Keep the change narrow to tests unless a real contract bug is exposed.
   - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "title or backtick or markdown or source"`
-    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "runbook"`
+    - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "empty or no evidence"`
+    - `.venv/bin/python -m pytest -q tests/test_markdown.py`
     - `make test`
 
-- [ ] ITK-039 (P1): Lock installed `triage` console-script parity with the documented quickstart
-  - Why (impact): the package metadata defines `triage = triage_toolkit.cli:main`, and README quickstart leads with `triage ...` commands, but current direct subprocess coverage still leans more heavily on `python -m triage_toolkit` than on the installed script wrapper. A broken console-script entrypoint would hurt first-run UX while still leaving most tests green.
+- [ ] ITK-036 (P3): Close the remaining thin CLI/parser helper and entrypoint seams so the last uncovered lines are fully intentional
+  - Why (impact): once console-script parity and operator-facing runbook fallbacks are locked, the remaining misses are tiny glue. This is low-risk work, but cheap direct coverage here keeps future refactors from regressing edge execution paths that still are not explicitly exercised.
   - DoD:
-    - Add one focused subprocess smoke test for the installed `triage` command (for example `triage --version`) and one narrow command-path assertion (for example parse stdout or missing-file error behavior).
-    - Keep the test resilient to the active virtualenv/dev-install layout instead of hardcoding an environment-specific script path.
-    - Reuse existing version/error expectations so this stays an entrypoint-parity task, not a new CLI-contract expansion.
-  - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_main.py -k "triage or console or version"`
-    - `make test`
-
-- [ ] ITK-036 (P3): Close the remaining thin helper/wrapper seams so the last uncovered lines are fully intentional
-  - Why (impact): once the user-visible write/markdown/entrypoint seams are locked, the only remaining uncovered code should be tiny glue. It is low-risk work, but cheap coverage here keeps future refactors from regressing edge execution paths that still are not directly exercised.
-  - DoD:
-    - Add helper coverage for `_read_stdin_lines()` when `sys.stdin` has no `.buffer`, `_read_events_for_parse([])` failing deterministically, and `_apply_event_filters(...)` rejecting non-matching correlation IDs while returning the full ordered input when no filters are supplied.
+    - Add helper coverage for `_read_stdin_lines()` when `sys.stdin` has no `.buffer` and for `_read_events_for_parse([])` failing with the stable missing-input message.
     - Add direct wrapper coverage for `parse_file(...)` delegating to `parse_file_with_summary(...)`.
-    - Add a script/module entrypoint smoke test that exercises the `triage_toolkit.cli` `__main__` path (not just `triage_toolkit.__main__`) so the remaining `cli.py` entrypoint line is intentional too.
+    - Add a module-entrypoint smoke test that exercises the `triage_toolkit.cli` `__main__` path (not just `triage_toolkit.__main__`) so the remaining `cli.py` guard is intentional too.
   - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py -k "stdin or read_events_for_parse or filters"`
+    - `.venv/bin/python -m pytest -q tests/test_cli_helpers.py -k "stdin or read_events_for_parse"`
     - `.venv/bin/python -m pytest -q tests/test_parser.py -k "parse_file"`
     - `.venv/bin/python -m pytest -q tests/test_main.py -k "cli or main or module"`
     - `make test`
@@ -56,6 +48,8 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-039 (P1): Lock installed `triage` console-script parity with the documented quickstart
+- [x] ITK-040 (P1): Harden remaining markdown/code-span safety for runbook titles and backtick-heavy dynamic fields
 - [x] ITK-041 (P1): Prove strict parse-gate failures never create or overwrite output files
 - [x] ITK-038 (P1): Restore README quickstart/write-path parity by locking `triage summary --out <file>` at the CLI contract layer
 - [x] ITK-034 (P1): Harden operator-facing markdown rendering against pipe/newline corruption in timeline and runbook output
