@@ -1,3 +1,5 @@
+import json
+from dataclasses import replace
 from pathlib import Path
 
 from triage_toolkit.parser import parse_file_with_summary, parse_line, parse_lines_with_summary
@@ -144,6 +146,42 @@ def test_runbook_surfaces_source_provenance_in_evidence_and_examples(tmp_path):
 
     assert f"- failed request cid=<id> (count: 1, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00, components: api, example: `{sample}:1`)" in runbook
     assert f"- `2025-01-01T00:00:01+00:00` `ERROR` `api` — failed request cid=c-1 (source: `{sample}:1`)" in runbook
+
+
+def test_runbook_markdown_bullets_flatten_newlines_and_escape_pipes():
+    parsed = parse_line(
+        json.dumps(
+            {
+                "timestamp": "2025-01-01T00:00:01Z",
+                "level": "error",
+                "component": "api|edge\nblue",
+                "message": "timeout|while\nprocessing",
+                "correlation_id": "cid|42\nhop",
+            }
+        )
+    )
+    assert parsed is not None
+
+    event = replace(parsed, source_path="ops|primary\nfeed", line_number=7)
+    runbook = build_runbook([event], "Incident: Markdown Safety")
+
+    assert "- Top error signatures: `timeout\\|while processing` (1)" in runbook
+    assert "- Evidence by source: `ops\\|primary feed` (1 of 1)" in runbook
+    assert "- Suspected components: api\\|edge blue (1)" in runbook
+    assert "- Representative correlation IDs: `cid\\|42 hop`" in runbook
+    assert (
+        "- timeout\\|while processing (count: 1, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00, components: api\\|edge blue, example: `ops\\|primary feed:7`)"
+        in runbook
+    )
+    assert "- `ops\\|primary feed` (evidence: 1 of 1, first: 2025-01-01T00:00:01+00:00)" in runbook
+    assert (
+        "- `2025-01-01T00:00:01+00:00` `ERROR` `api\\|edge blue` — timeout\\|while processing (source: `ops\\|primary feed:7`)"
+        in runbook
+    )
+    assert "ops|primary\nfeed" not in runbook
+    assert "api|edge\nblue" not in runbook
+    assert "timeout|while\nprocessing" not in runbook
+    assert "cid|42\nhop" not in runbook
 
 
 def test_runbook_empty_state_uses_explicit_no_evidence_template():

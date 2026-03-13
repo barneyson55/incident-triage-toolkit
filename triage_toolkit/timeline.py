@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from .evidence import build_signature_evidence, build_source_evidence, component_counts, is_error, order_events, render_error_signature
+from .markdown import markdown_safe_text
 from .models import LogEvent
 from .redaction import redact_text
-
-
-def _escape_markdown(text: str) -> str:
-    return text.replace("|", "\\|")
 
 
 def _format_event_source(event: LogEvent) -> str:
@@ -17,7 +14,7 @@ def _format_event_source(event: LogEvent) -> str:
 
 def _format_source_evidence(item, *, total_evidence_events: int) -> str:
     return "- `{}` (evidence: {} of {}, first: {})".format(
-        item.source,
+        markdown_safe_text(item.source),
         item.count,
         total_evidence_events,
         item.first_seen.isoformat(),
@@ -43,16 +40,16 @@ def build_timeline(events: list[LogEvent], *, redact: bool = False) -> str:
     ]
 
     for event in ordered:
-        message = event.message.replace("\n", " ")
+        message = event.message
         if redact:
             message = redact_text(message)
         lines.append(
             "| {} | {} | {} | {} | {} |".format(
                 event.timestamp.isoformat(),
-                _escape_markdown(_format_event_source(event)),
-                event.level,
-                event.component,
-                _escape_markdown(message),
+                markdown_safe_text(_format_event_source(event)),
+                markdown_safe_text(event.level),
+                markdown_safe_text(event.component),
+                markdown_safe_text(message),
             )
         )
 
@@ -67,7 +64,7 @@ def build_timeline(events: list[LogEvent], *, redact: bool = False) -> str:
                 signature = render_error_signature(evidence.representative.message, redact=True)
             lines.append(
                 "- {} (count: {}, first: {}, last: {})".format(
-                    signature,
+                    markdown_safe_text(signature),
                     evidence.count,
                     evidence.first_seen.isoformat(),
                     evidence.last_seen.isoformat(),
@@ -86,6 +83,6 @@ def build_timeline(events: list[LogEvent], *, redact: bool = False) -> str:
         lines.append("- No components inferred.")
     else:
         for component, count in component_counts(ordered):
-            lines.append(f"- {component} (errors: {count})")
+            lines.append(f"- {markdown_safe_text(component)} (errors: {count})")
 
     return "\n".join(lines) + "\n"

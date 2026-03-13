@@ -1,3 +1,5 @@
+import json
+from dataclasses import replace
 from pathlib import Path
 
 from triage_toolkit.parser import parse_file_with_summary, parse_line, parse_lines_with_summary
@@ -118,6 +120,37 @@ def test_timeline_surfaces_source_provenance_in_event_rows(tmp_path):
 
     assert f"| 2025-01-01T00:00:01+00:00 | {sample}:1 | INFO | api | accepted |" in timeline
     assert f"| 2025-01-01T00:00:02+00:00 | {sample}:2 | ERROR | db | failed |" in timeline
+
+
+def test_timeline_markdown_cells_escape_pipes_and_flatten_newlines():
+    parsed = parse_line(
+        json.dumps(
+            {
+                "timestamp": "2025-01-01T00:00:01Z",
+                "level": "error",
+                "component": "api|edge\nblue",
+                "message": "timeout|while\nprocessing",
+            }
+        )
+    )
+    assert parsed is not None
+
+    event = replace(parsed, source_path="ops|primary\nfeed", line_number=7)
+    fallback = replace(parsed, source_path=None, line_number=None)
+
+    timeline = build_timeline([event, fallback])
+
+    assert (
+        "| 2025-01-01T00:00:01+00:00 | ops\\|primary feed:7 | ERROR | api\\|edge blue | timeout\\|while processing |"
+        in timeline
+    )
+    assert "- timeout\\|while processing (count: 2, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00)" in timeline
+    assert "- `ops\\|primary feed` (evidence: 1 of 2, first: 2025-01-01T00:00:01+00:00)" in timeline
+    assert "- api\\|edge blue (errors: 2)" in timeline
+    assert "| 2025-01-01T00:00:01+00:00 | n/a | ERROR | api\\|edge blue | timeout\\|while processing |" in timeline
+    assert "ops|primary\nfeed" not in timeline
+    assert "api|edge\nblue" not in timeline
+    assert "timeout|while\nprocessing" not in timeline
 
 
 def test_timeline_includes_critical_fatal_and_message_hint_events_in_shared_evidence_sections():

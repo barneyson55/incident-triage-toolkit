@@ -9,6 +9,7 @@ from .evidence import (
     render_error_signature,
     representative_correlation_ids,
 )
+from .markdown import markdown_safe_text
 from .models import LogEvent
 from .redaction import redact_identifier, redact_text
 
@@ -16,19 +17,19 @@ from .redaction import redact_identifier, redact_text
 def _format_component_counts(items: list[tuple[str, int]]) -> str:
     if not items:
         return "none"
-    return ", ".join(f"{component} ({count})" for component, count in items)
+    return ", ".join(f"{markdown_safe_text(component)} ({count})" for component, count in items)
 
 
 def _display_signature(item, *, redact: bool = False) -> str:
     if redact:
-        return render_error_signature(item.representative.message, redact=True)
-    return item.signature
+        return markdown_safe_text(render_error_signature(item.representative.message, redact=True))
+    return markdown_safe_text(item.signature)
 
 
 def _display_correlation_id(correlation_id: str, *, redact: bool = False) -> str:
     if redact:
-        return redact_identifier(correlation_id)
-    return correlation_id
+        return markdown_safe_text(redact_identifier(correlation_id))
+    return markdown_safe_text(correlation_id)
 
 
 def _format_correlation_ids(correlation_ids: list[str], *, redact: bool = False) -> str:
@@ -46,12 +47,14 @@ def _format_signature_list(signatures, *, redact: bool = False) -> str:
 def _format_source_summary(items, *, total_evidence_events: int) -> str:
     if not items:
         return "none"
-    return ", ".join(f"`{item.source}` ({item.count} of {total_evidence_events})" for item in items)
+    return ", ".join(
+        f"`{markdown_safe_text(item.source)}` ({item.count} of {total_evidence_events})" for item in items
+    )
 
 
 def _format_source_evidence(item, *, total_evidence_events: int) -> str:
     return "- `{}` (evidence: {} of {}, first: {})".format(
-        item.source,
+        markdown_safe_text(item.source),
         item.count,
         total_evidence_events,
         item.first_seen.isoformat(),
@@ -67,7 +70,7 @@ def _incident_window(ordered: list[LogEvent]) -> str:
 def _format_event_source(event: LogEvent) -> str:
     if event.source_path is None or event.line_number is None:
         return "n/a"
-    return f"{event.source_path}:{event.line_number}"
+    return markdown_safe_text(f"{event.source_path}:{event.line_number}")
 
 
 def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -> str:
@@ -105,7 +108,7 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
         lines.append("- None detected in parsed input.")
     else:
         for item in signatures:
-            components = ", ".join(item.components) if item.components else "unknown"
+            components = markdown_safe_text(", ".join(item.components) if item.components else "unknown")
             signature = _display_signature(item, redact=redact)
             lines.append(
                 "- {} (count: {}, first: {}, last: {}, components: {}, example: `{}`)".format(
@@ -131,15 +134,15 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     else:
         for item in signatures:
             event = item.representative
-            message = event.message.replace("\n", " ")
+            message = event.message
             if redact:
                 message = redact_text(message)
             lines.append(
                 "- `{}` `{}` `{}` — {} (source: `{}`)".format(
                     event.timestamp.isoformat(),
-                    event.level,
-                    event.component,
-                    message,
+                    markdown_safe_text(event.level),
+                    markdown_safe_text(event.component),
+                    markdown_safe_text(message),
                     _format_event_source(event),
                 )
             )
@@ -147,7 +150,8 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     lines.extend(["", "## Checks"])
     if top_components:
         lines.append(
-            f"- Prioritize health and dependency checks for: {', '.join(component for component, _ in top_components)}."
+            "- Prioritize health and dependency checks for: "
+            f"{markdown_safe_text(', '.join(component for component, _ in top_components))}."
         )
     else:
         lines.append("- Validate that the selected logs and filters cover the suspected incident window.")
@@ -168,7 +172,8 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     lines.extend(["", "## Workaround"])
     if top_components:
         lines.append(
-            f"- Reduce traffic to, disable risky flows in, or otherwise contain the implicated components: {', '.join(component for component, _ in top_components)}."
+            "- Reduce traffic to, disable risky flows in, or otherwise contain the implicated components: "
+            f"{markdown_safe_text(', '.join(component for component, _ in top_components))}."
         )
     else:
         lines.append("- Reduce customer impact with the safest reversible mitigation available while collecting better evidence.")

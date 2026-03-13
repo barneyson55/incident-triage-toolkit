@@ -9,6 +9,22 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-034 completed (timeline/runbook markdown rendering now stays single-line and pipe-safe across operator-facing dynamic fields):
+  - Added `triage_toolkit/markdown.py` with a tiny shared `markdown_safe_text(...)` helper that flattens embedded CR/LF newlines and escapes literal `|` characters.
+  - Updated `triage_toolkit/timeline.py` so event table cells now sanitize `source`, `level`, `component`, and `message`, and the evidence/component sections sanitize dynamic signature/source/component text too.
+  - Updated `triage_toolkit/runbook.py` to use the same helper across symptoms/evidence/example/check/workaround/fix/verification surfaces, including source summaries, component lists, representative correlation IDs, and example provenance.
+  - Expanded `tests/test_timeline.py` and `tests/test_runbook.py` with focused regressions that feed pipe/newline-heavy component/message/source/correlation values through the public renderers and assert the markdown stays on one line without losing the explicit `n/a` provenance fallback.
+- Why:
+  - The highest remaining operator-facing risk was markdown corruption in human handoff artifacts, especially table cells and bullets that could be broken by embedded `|` or newline characters supplied by JSON logs.
+- Risks / follow-ups:
+  - This milestone intentionally targets pipe/newline hardening only; inline-code backtick escaping is still unchanged because it was not part of the current queued risk.
+  - The next queued item is ITK-038 to lock `triage summary --out <file>` at the CLI contract layer.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_timeline.py -k "pipe or newline or markdown or source"` ✅ (5 passed)
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "newline or markdown or source"` ✅ (5 passed)
+  - `make lint` ✅
+  - `make test` ✅ (188 passed)
+
 - ITK-037 completed (compact end-to-end CLI contract fixture now locks alias-shaped JSON logs across the public surfaces):
   - Added `tests/fixtures/golden/alias_shaped_input.log`, a compact heterogeneous JSON-lines fixture that exercises alias timestamps (`time` / `ts`), alias level/component/message fields (`severity`, `lvl`, `service`, `logger`, `msg`, `event`), and mixed correlation-ID sourcing via explicit `cid`, explicit `correlation_id`, and message-only extraction.
   - Expanded `tests/test_cli.py` with CLI-level assertions that `triage parse` normalizes alias-heavy events into the locked parse contract and that `triage timeline` / `triage runbook` render normalized component/message content without leaking raw JSON alias keys.
@@ -226,4 +242,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Start ITK-034 by adding focused markdown-renderer edge coverage for timeline/runbook safety and readability.
+- Start ITK-038 by locking `triage summary --out <file>` at the CLI contract layer so the README quickstart write path is covered end to end.
