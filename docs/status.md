@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-037 completed (compact end-to-end CLI contract fixture now locks alias-shaped JSON logs across the public surfaces):
+  - Added `tests/fixtures/golden/alias_shaped_input.log`, a compact heterogeneous JSON-lines fixture that exercises alias timestamps (`time` / `ts`), alias level/component/message fields (`severity`, `lvl`, `service`, `logger`, `msg`, `event`), and mixed correlation-ID sourcing via explicit `cid`, explicit `correlation_id`, and message-only extraction.
+  - Expanded `tests/test_cli.py` with CLI-level assertions that `triage parse` normalizes alias-heavy events into the locked parse contract and that `triage timeline` / `triage runbook` render normalized component/message content without leaking raw JSON alias keys.
+  - Expanded `tests/test_summary_contract.py` with a focused summary contract fixture test that locks the normalized incident window, top components, evidence counts, signatures, source concentration, coverage ratio, and parse summary for the alias-shaped input.
+- Why:
+  - Alias handling was already protected at the parser seam, but this milestone now proves the same normalization guarantees survive through the actual operator-facing CLI contracts instead of only through direct unit calls.
+- Risks / follow-ups:
+  - This milestone stays intentionally compact and fixture-driven; the next queued gap is ITK-034 for markdown-renderer edge coverage around pipe escaping and newline flattening in timeline/runbook output.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "alias or heterogeneous or normalized"` ✅ (3 passed, 58 deselected)
+  - `.venv/bin/python -m pytest -q tests/test_summary_contract.py` ✅ (6 passed)
+  - `make lint` ✅
+  - `make test` ✅ (186 passed)
+
 - ITK-035 completed (direct parser coverage now locks heterogeneous JSON aliases and correlation-ID precedence):
   - Expanded `tests/test_parser.py` with focused JSON-ingestion coverage for `time` / `ts`, `severity` / `lvl`, `service` / `logger`, and `msg` / `event`, including provenance assertions on normalized timestamps and preserved source offsets.
   - Added precedence/fallback coverage proving populated primary keys beat aliases, empty/`null` alias values fall through correctly, and missing optional level/component fields still default to `INFO` / `unknown`.
@@ -212,4 +226,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Start ITK-037 by adding a compact end-to-end CLI contract fixture for alias-shaped JSON logs.
+- Start ITK-034 by adding focused markdown-renderer edge coverage for timeline/runbook safety and readability.

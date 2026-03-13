@@ -2,7 +2,7 @@
 
 Rule: work ONLY on the **first unchecked top-level** item.
 
-Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-12 UTC):
+Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/doc verification (2026-03-13 UTC):
 - `git status --short --branch` ✅ clean on entry to this docs-only maintenance pass (`## main...origin/main`)
 - `docs/status.md` ✅ exists
 - `docs/critical_todo.md` ✅ exists
@@ -10,42 +10,18 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 - `docs/deep_research_auto.md` ✅ exists
 - `docs/user_todo.md` ✅ exists and has no open checkbox items
 - Live verification from this maintenance pass:
-  - `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing -q` ✅ (`174 passed`, total coverage `99%`; remaining uncovered lines are isolated to thin branches in `triage_toolkit/cli.py` and `triage_toolkit/parser.py`)
+  - `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing -q` ✅ (`186 passed`, total coverage `99%`; remaining uncovered lines are isolated to thin branches in `triage_toolkit/cli.py` and `triage_toolkit/parser.py`)
+  - focused repo search confirms direct parser alias tests now exist in `tests/test_parser.py`, while no focused `timeline` / `runbook` pipe/newline assertions or thin-wrapper tests for `_read_stdin_lines()`, `_read_events_for_parse([])`, `parse_file(...)`, and `main()` were found
 - Current repo facts from this maintenance pass:
   - the package remains intentionally compact and layered: `parser.py` + `utils.py` ingest, `cli.py` owns operator-facing command flow and strict gates, `evidence.py` + `redaction.py` provide shared semantics, and `timeline.py` / `runbook.py` render operator-facing markdown
-  - repo footprint remains small enough for coverage-first hardening: 10 source modules, 11 top-level test modules, 18 tracked fixture files under `tests/fixtures/`, and a currently green collected suite at 174 tests
+  - repo footprint remains small enough for coverage-first hardening: 10 source modules, 11 top-level test modules, 19 tracked fixture files under `tests/fixtures/`, and a currently green collected suite at 186 tests
   - dedicated helper suites already exist for shared CLI plumbing, evidence logic, and redaction behavior (`tests/test_cli_helpers.py`, `tests/test_evidence.py`, `tests/test_redaction.py`)
   - dedicated contract/golden coverage already exists for parse, summary, timeline, and runbook surfaces, including redacted goldens and cross-surface parity coverage
-  - `tests/test_main.py` now covers both the monkeypatched `__main__` wire-up and direct `python -m triage_toolkit` subprocess behavior for `--version` plus a stable missing-file failure path
-  - `tests/test_utils.py` now directly locks timestamp normalization shapes and `extract_correlation_id(...)` match/non-match boundaries without redoing parser end-to-end coverage
-  - `parser.py` still exposes heterogeneous JSON alias branches for `timestamp|time|ts`, `level|severity|lvl`, `component|service|logger`, and `message|msg|event`, but neither direct parser tests nor CLI-level fixtures currently lock those alias/fallback branches end-to-end
+  - direct parser coverage now locks heterogeneous JSON aliases and correlation-ID precedence in `tests/test_parser.py`, and the public CLI contract now adds a compact alias-heavy end-to-end fixture spanning `parse`, `summary`, `timeline`, and `runbook`
   - `timeline.py` and `runbook.py` still have no focused coverage for markdown-formatting edge cases like pipe escaping in table cells or newline flattening in rendered operator-facing messages
   - live coverage now narrows the remaining low-level blind spots to wrapper/helper branches such as `_read_stdin_lines()`, `_read_events_for_parse([])`, no-filter passthrough in `_apply_event_filters(...)`, the summary file-success path, `main()`, and `parse_file(...)`
 
 ## Open priorities (highest engineering impact first)
-
-- [x] ITK-035 (P2): Lock heterogeneous JSON-ingestion aliases and correlation-ID precedence with direct parser coverage
-  - Why (impact): the core parser explicitly accepts multiple vendor-style JSON field aliases, but the current suite mostly exercises the default `timestamp` / `level` / `component` / `message` shapes. If those alias branches drift, whole classes of supported logs can silently stop parsing even while the happy-path fixtures stay green.
-  - DoD:
-    - Add focused parser tests proving JSON alias support for `time` / `ts`, `severity` / `lvl`, `service` / `logger`, and `msg` / `event`.
-    - Add precedence/fallback tests showing populated earlier keys win, empty/`null` alias values fall through correctly, and default level/component behavior stays stable when optional fields are missing.
-    - Add direct coverage for correlation-ID precedence: payload `correlation_id`, payload `cid`, and message-extracted `cid=` / `correlation_id=` fallbacks.
-    - Keep assertions on stable parsed event fields and documented drop reasons rather than implementation constants.
-  - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_parser.py -k "json or alias or correlation"`
-    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "parse or summary"`
-    - `make test`
-
-- [ ] ITK-037 (P2): Add a compact end-to-end CLI contract fixture for alias-shaped JSON logs
-  - Why (impact): ITK-035 will lock alias behavior at the parser seam, but the public product promise lives at the CLI surface. A compact fixture should prove alias-heavy JSON inputs still normalize cleanly through `parse`, `summary`, `timeline`, and `runbook` instead of only through unit-level parser calls.
-  - DoD:
-    - Add a compact heterogeneous JSON fixture using alias fields across timestamps, levels, components, and messages, with mixed correlation-ID sources (`cid`, `correlation_id`, and message-only extraction).
-    - Add CLI-level assertions proving `triage parse` emits normalized event keys/provenance, `triage summary` counts the evidence/components correctly, and `triage timeline` / `triage runbook` render normalized component/message content without alias leakage.
-    - Prefer narrow contract assertions or a small purpose-built fixture over broad unrelated golden rewrites.
-  - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "alias or heterogeneous or normalized"`
-    - `.venv/bin/python -m pytest -q tests/test_summary_contract.py`
-    - `make test`
 
 - [ ] ITK-034 (P3): Add focused markdown-renderer edge coverage for timeline/runbook safety and readability
   - Why (impact): the human-facing timeline and runbook outputs are already covered by happy-path and golden tests, but they still lack targeted assertions for formatting edge cases that can quietly degrade operator handoff quality, especially messages containing pipe characters or embedded newlines.
@@ -75,6 +51,8 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-037 (P2): Add a compact end-to-end CLI contract fixture for alias-shaped JSON logs
+- [x] ITK-035 (P2): Lock heterogeneous JSON-ingestion aliases and correlation-ID precedence with direct parser coverage
 - [x] ITK-031 (P2): Add direct utility-edge coverage for timestamp normalization and correlation-ID extraction helpers
 - [x] ITK-033 (P2): Close the remaining direct CLI operator-surface coverage gaps for file-summary/stdin failure paths and entrypoint behavior
 - [x] ITK-032 (P2): Add direct CLI summary/redaction helper coverage for automation-facing ordering invariants

@@ -12,6 +12,7 @@ from triage_toolkit.cli import app
 
 runner = CliRunner()
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
+ALIAS_FIXTURE = GOLDEN_DIR / "alias_shaped_input.log"
 
 
 _REDACTION_PLACEHOLDER_RE = re.compile(r"\[redacted-(?:email|ip|id|secret):[a-z]+\]")
@@ -367,6 +368,91 @@ def test_runbook_accepts_stdin_only():
     assert "- Top error signatures: `failed cid=<id>` (1)" in result.stdout
     assert "- failed cid=<id> (count: 1, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00, components: api, example: `-:1`)" in result.stdout
     assert "- `2025-01-01T00:00:01+00:00` `ERROR` `api` — failed cid=c-1 (source: `-:1`)" in result.stdout
+
+
+def test_parse_alias_shaped_json_cli_normalizes_events_and_provenance():
+    result = runner.invoke(app, ["parse", str(ALIAS_FIXTURE), "--out", "-"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == cli_module.PARSE_SCHEMA_VERSION
+    assert [event["timestamp"] for event in payload["events"]] == [
+        "2025-01-01T00:00:01+00:00",
+        "2025-01-01T00:00:02+00:00",
+        "2025-01-01T00:00:03+00:00",
+    ]
+    assert payload["events"] == [
+        {
+            "timestamp": "2025-01-01T00:00:01+00:00",
+            "source_timestamp": "2025-01-01T02:00:01+02:00",
+            "source_offset": "+02:00",
+            "source_path": str(ALIAS_FIXTURE),
+            "line_number": 1,
+            "level": "WARN",
+            "component": "payments",
+            "message": "warmup complete cid=msg-1",
+            "correlation_id": "msg-1",
+        },
+        {
+            "timestamp": "2025-01-01T00:00:02+00:00",
+            "source_timestamp": "2025-01-01T00:00:02Z",
+            "source_offset": "Z",
+            "source_path": str(ALIAS_FIXTURE),
+            "line_number": 2,
+            "level": "ERROR",
+            "component": "worker.queue",
+            "message": "job failed correlation_id=msg-2",
+            "correlation_id": "cid-2",
+        },
+        {
+            "timestamp": "2025-01-01T00:00:03+00:00",
+            "source_timestamp": "2025-01-01T00:00:03Z",
+            "source_offset": "Z",
+            "source_path": str(ALIAS_FIXTURE),
+            "line_number": 3,
+            "level": "ERROR",
+            "component": "api",
+            "message": "request failed cid=msg-3",
+            "correlation_id": "corr-3",
+        },
+    ]
+
+
+def test_timeline_and_runbook_alias_shaped_json_render_normalized_content_without_alias_leakage():
+    timeline_result = runner.invoke(app, ["timeline", str(ALIAS_FIXTURE), "--out", "-"])
+    runbook_result = runner.invoke(
+        app,
+        ["runbook", str(ALIAS_FIXTURE), "--out", "-", "--title", "Incident: Alias Fixture"],
+    )
+
+    assert timeline_result.exit_code == 0
+    assert runbook_result.exit_code == 0
+
+    assert (
+        f"| 2025-01-01T00:00:02+00:00 | {ALIAS_FIXTURE}:2 | ERROR | worker.queue | job failed correlation_id=msg-2 |"
+        in timeline_result.stdout
+    )
+    assert (
+        f"| 2025-01-01T00:00:03+00:00 | {ALIAS_FIXTURE}:3 | ERROR | api | request failed cid=msg-3 |"
+        in timeline_result.stdout
+    )
+    assert "- job failed cid=<id> (count: 1, first: 2025-01-01T00:00:02+00:00, last: 2025-01-01T00:00:02+00:00)" in timeline_result.stdout
+    assert "- request failed cid=<id> (count: 1, first: 2025-01-01T00:00:03+00:00, last: 2025-01-01T00:00:03+00:00)" in timeline_result.stdout
+
+    assert "- Evidence events: 2 of 3 total" in runbook_result.stdout
+    assert "- Top error signatures: `job failed cid=<id>` (1), `request failed cid=<id>` (1)" in runbook_result.stdout
+    assert (
+        f"- `2025-01-01T00:00:02+00:00` `ERROR` `worker.queue` — job failed correlation_id=msg-2 (source: `{ALIAS_FIXTURE}:2`)"
+        in runbook_result.stdout
+    )
+    assert (
+        f"- `2025-01-01T00:00:03+00:00` `ERROR` `api` — request failed cid=msg-3 (source: `{ALIAS_FIXTURE}:3`)"
+        in runbook_result.stdout
+    )
+
+    for alias_key in ('"severity":', '"lvl":', '"service":', '"logger":', '"msg":', '"event":'):
+        assert alias_key not in timeline_result.stdout
+        assert alias_key not in runbook_result.stdout
 
 
 def test_parse_missing_file_error():
