@@ -184,6 +184,46 @@ def test_runbook_markdown_bullets_flatten_newlines_and_escape_pipes():
     assert "cid|42\nhop" not in runbook
 
 
+def test_runbook_title_flattens_newlines_and_escapes_literal_backticks():
+    events = [parse_line("2025-01-01T00:00:01Z ERROR api: failed request cid=c-1")]
+    runbook = build_runbook([event for event in events if event], "Incident: Multi\nline `title`")
+
+    assert runbook.startswith("# Incident: Multi line \\`title\\`\n")
+    assert "# Incident: Multi\nline `title`" not in runbook
+
+
+def test_runbook_code_spans_expand_for_backtick_heavy_dynamic_fields():
+    parsed = parse_line(
+        json.dumps(
+            {
+                "timestamp": "2025-01-01T00:00:01Z",
+                "level": "error",
+                "component": "api`edge\nblue",
+                "message": "oops `quoted` cid=`c-1`",
+                "correlation_id": "tick`id",
+            }
+        )
+    )
+    assert parsed is not None
+
+    event = replace(parsed, source_path="ops`feed", line_number=7)
+    runbook = build_runbook([event], "Incident: Backtick Safety")
+
+    assert "- Top error signatures: `` oops `quoted` cid=`c-#` `` (1)" in runbook
+    assert "- Evidence by source: ``ops`feed`` (1 of 1)" in runbook
+    assert "- Representative correlation IDs: ``tick`id``" in runbook
+    assert (
+        "- oops \\`quoted\\` cid=\\`c-#\\` (count: 1, first: 2025-01-01T00:00:01+00:00, last: 2025-01-01T00:00:01+00:00, components: api\\`edge blue, example: ``ops`feed:7``)"
+        in runbook
+    )
+    assert "- ``ops`feed`` (evidence: 1 of 1, first: 2025-01-01T00:00:01+00:00)" in runbook
+    assert (
+        "- `2025-01-01T00:00:01+00:00` `ERROR` ``api`edge blue`` — oops \\`quoted\\` cid=\\`c-1\\` (source: ``ops`feed:7``)"
+        in runbook
+    )
+    assert "- Trace these IDs through adjacent logs and traces: tick\\`id." in runbook
+
+
 def test_runbook_empty_state_uses_explicit_no_evidence_template():
     runbook = build_runbook([], "Incident: Empty")
 

@@ -9,7 +9,7 @@ from .evidence import (
     render_error_signature,
     representative_correlation_ids,
 )
-from .markdown import markdown_safe_text
+from .markdown import markdown_code_span, markdown_safe_text
 from .models import LogEvent
 from .redaction import redact_identifier, redact_text
 
@@ -17,44 +17,56 @@ from .redaction import redact_identifier, redact_text
 def _format_component_counts(items: list[tuple[str, int]]) -> str:
     if not items:
         return "none"
-    return ", ".join(f"{markdown_safe_text(component)} ({count})" for component, count in items)
+    return ", ".join(f"{markdown_safe_text(component, escape_backticks=True)} ({count})" for component, count in items)
 
 
 def _display_signature(item, *, redact: bool = False) -> str:
     if redact:
-        return markdown_safe_text(render_error_signature(item.representative.message, redact=True))
-    return markdown_safe_text(item.signature)
+        return markdown_safe_text(render_error_signature(item.representative.message, redact=True), escape_backticks=True)
+    return markdown_safe_text(item.signature, escape_backticks=True)
+
+
+def _code_span_signature(item, *, redact: bool = False) -> str:
+    if redact:
+        return markdown_code_span(render_error_signature(item.representative.message, redact=True))
+    return markdown_code_span(item.signature)
 
 
 def _display_correlation_id(correlation_id: str, *, redact: bool = False) -> str:
     if redact:
-        return markdown_safe_text(redact_identifier(correlation_id))
-    return markdown_safe_text(correlation_id)
+        return markdown_safe_text(redact_identifier(correlation_id), escape_backticks=True)
+    return markdown_safe_text(correlation_id, escape_backticks=True)
+
+
+def _code_span_correlation_id(correlation_id: str, *, redact: bool = False) -> str:
+    if redact:
+        return markdown_code_span(redact_identifier(correlation_id))
+    return markdown_code_span(correlation_id)
 
 
 def _format_correlation_ids(correlation_ids: list[str], *, redact: bool = False) -> str:
     if not correlation_ids:
         return "none"
-    return ", ".join(f"`{_display_correlation_id(correlation_id, redact=redact)}`" for correlation_id in correlation_ids)
+    return ", ".join(_code_span_correlation_id(correlation_id, redact=redact) for correlation_id in correlation_ids)
 
 
 def _format_signature_list(signatures, *, redact: bool = False) -> str:
     if not signatures:
         return "none"
-    return ", ".join(f"`{_display_signature(item, redact=redact)}` ({item.count})" for item in signatures)
+    return ", ".join(f"{_code_span_signature(item, redact=redact)} ({item.count})" for item in signatures)
 
 
 def _format_source_summary(items, *, total_evidence_events: int) -> str:
     if not items:
         return "none"
     return ", ".join(
-        f"`{markdown_safe_text(item.source)}` ({item.count} of {total_evidence_events})" for item in items
+        f"{markdown_code_span(item.source)} ({item.count} of {total_evidence_events})" for item in items
     )
 
 
 def _format_source_evidence(item, *, total_evidence_events: int) -> str:
-    return "- `{}` (evidence: {} of {}, first: {})".format(
-        markdown_safe_text(item.source),
+    return "- {} (evidence: {} of {}, first: {})".format(
+        markdown_code_span(item.source),
         item.count,
         total_evidence_events,
         item.first_seen.isoformat(),
@@ -63,14 +75,14 @@ def _format_source_evidence(item, *, total_evidence_events: int) -> str:
 
 def _incident_window(ordered: list[LogEvent]) -> str:
     if not ordered:
-        return "`n/a`"
-    return f"`{ordered[0].timestamp.isoformat()}` → `{ordered[-1].timestamp.isoformat()}`"
+        return markdown_code_span("n/a")
+    return f"{markdown_code_span(ordered[0].timestamp.isoformat())} → {markdown_code_span(ordered[-1].timestamp.isoformat())}"
 
 
 def _format_event_source(event: LogEvent) -> str:
     if event.source_path is None or event.line_number is None:
         return "n/a"
-    return markdown_safe_text(f"{event.source_path}:{event.line_number}")
+    return f"{event.source_path}:{event.line_number}"
 
 
 def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -> str:
@@ -85,12 +97,12 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     last_observed = ordered[-1].timestamp.isoformat() if ordered else "n/a"
 
     lines: list[str] = [
-        f"# {title}",
+        f"# {markdown_safe_text(title, escape_backticks=True)}",
         "",
         "## Symptoms",
         f"- Incident window: {_incident_window(ordered)}",
-        f"- First observed: `{first_observed}`",
-        f"- Last observed: `{last_observed}`",
+        f"- First observed: {markdown_code_span(first_observed)}",
+        f"- Last observed: {markdown_code_span(last_observed)}",
         f"- Evidence events: {len(evidence_events)} of {len(ordered)} total",
         f"- Top error signatures: {_format_signature_list(signatures, redact=redact)}",
         f"- Evidence by source: {_format_source_summary(source_evidence, total_evidence_events=len(evidence_events))}",
@@ -108,16 +120,16 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
         lines.append("- None detected in parsed input.")
     else:
         for item in signatures:
-            components = markdown_safe_text(", ".join(item.components) if item.components else "unknown")
+            components = markdown_safe_text(", ".join(item.components) if item.components else "unknown", escape_backticks=True)
             signature = _display_signature(item, redact=redact)
             lines.append(
-                "- {} (count: {}, first: {}, last: {}, components: {}, example: `{}`)".format(
+                "- {} (count: {}, first: {}, last: {}, components: {}, example: {})".format(
                     signature,
                     item.count,
                     item.first_seen.isoformat(),
                     item.last_seen.isoformat(),
                     components,
-                    _format_event_source(item.representative),
+                    markdown_code_span(_format_event_source(item.representative)),
                 )
             )
 
@@ -138,12 +150,12 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
             if redact:
                 message = redact_text(message)
             lines.append(
-                "- `{}` `{}` `{}` — {} (source: `{}`)".format(
-                    event.timestamp.isoformat(),
-                    markdown_safe_text(event.level),
-                    markdown_safe_text(event.component),
-                    markdown_safe_text(message),
-                    _format_event_source(event),
+                "- {} {} {} — {} (source: {})".format(
+                    markdown_code_span(event.timestamp.isoformat()),
+                    markdown_code_span(event.level),
+                    markdown_code_span(event.component),
+                    markdown_safe_text(message, escape_backticks=True),
+                    markdown_code_span(_format_event_source(event)),
                 )
             )
 
@@ -151,7 +163,7 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     if top_components:
         lines.append(
             "- Prioritize health and dependency checks for: "
-            f"{markdown_safe_text(', '.join(component for component, _ in top_components))}."
+            f"{markdown_safe_text(', '.join(component for component, _ in top_components), escape_backticks=True)}."
         )
     else:
         lines.append("- Validate that the selected logs and filters cover the suspected incident window.")
@@ -173,7 +185,7 @@ def build_runbook(events: list[LogEvent], title: str, *, redact: bool = False) -
     if top_components:
         lines.append(
             "- Reduce traffic to, disable risky flows in, or otherwise contain the implicated components: "
-            f"{markdown_safe_text(', '.join(component for component, _ in top_components))}."
+            f"{markdown_safe_text(', '.join(component for component, _ in top_components), escape_backticks=True)}."
         )
     else:
         lines.append("- Reduce customer impact with the safest reversible mitigation available while collecting better evidence.")

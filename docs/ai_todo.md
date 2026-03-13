@@ -11,25 +11,15 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 - `docs/user_todo.md` ✅ exists and has no open checkbox items
 - Latest recorded verification in `docs/status.md` remains green:
   - `make lint` ✅
-  - `make test` ✅ (`189 passed`)
+  - `make test` ✅ (`197 passed`)
 - Current repo facts from this maintenance pass:
-  - `docs/status.md` shows ITK-038 is complete, so README-advertised `triage summary --out <file>` parity is no longer an open priority
-  - `docs/critical_todo.md` has no build/security/data-loss emergency queued, so the highest-impact remaining work is concentrated in contract hardening and operator-surface edge cases
-  - the remaining open seams are now small but user-visible: strict-mode file safety, runbook markdown safety for backticks/newlines, installed `triage` console-script parity, and a few thin helper/wrapper branches
+  - `docs/status.md` shows ITK-041 is complete, so strict-mode output-file safety is no longer an open priority
+  - `docs/status.md` also confirms ITK-038 is complete, so README-advertised `triage summary --out <file>` parity is already locked
+  - `docs/critical_todo.md` has no build/security/data-loss emergency queued, so the highest-impact remaining work is concentrated in operator-facing markdown safety, real entrypoint parity, and a few intentionally thin helper/entrypoint seams
 
 ## Open priorities (highest engineering impact first)
 
-- [x] ITK-041 (P1): Prove strict parse-gate failures never create or overwrite output files
-  - Why (impact): strict mode is meant to fail fast when parse quality is too poor. The failure messaging is covered already, but there is still no focused contract proving `--strict --out <file>` does not leave behind fresh or overwritten artifacts that could be mistaken for valid outputs.
-  - DoD:
-    - Add narrow CLI tests for `parse`, `summary`, `timeline`, and `runbook` using failing strict inputs with file outputs.
-    - Assert exit code `2`, stable strict-gate error fragments, and that the output file is either absent or unchanged from a pre-existing sentinel value.
-    - Keep the task at the contract level only; no product behavior change is needed unless the tests expose a bug.
-  - Verification:
-    - `.venv/bin/python -m pytest -q tests/test_cli.py -k "strict and out"`
-    - `make test`
-
-- [ ] ITK-040 (P1): Harden remaining markdown/code-span safety for runbook titles and backtick-heavy dynamic fields
+- [x] ITK-040 (P1): Harden remaining markdown/code-span safety for runbook titles and backtick-heavy dynamic fields
   - Why (impact): pipe/newline corruption is fixed, but `runbook.py` still renders several dynamic values inside inline-code spans and a raw H1 title. Literal backticks or embedded newlines in titles, signatures, correlation IDs, or source labels can still degrade the handoff artifact even when the underlying incident logic is correct.
   - DoD:
     - Add focused runbook coverage for titles containing embedded newlines or literal backticks, and for dynamic values rendered inside backticks (for example correlation IDs, source labels, and top signatures).
@@ -40,7 +30,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
     - `.venv/bin/python -m pytest -q tests/test_cli.py -k "runbook"`
     - `make test`
 
-- [ ] ITK-039 (P2): Lock installed `triage` console-script parity with the documented quickstart
+- [ ] ITK-039 (P1): Lock installed `triage` console-script parity with the documented quickstart
   - Why (impact): the package metadata defines `triage = triage_toolkit.cli:main`, and README quickstart leads with `triage ...` commands, but current direct subprocess coverage still leans more heavily on `python -m triage_toolkit` than on the installed script wrapper. A broken console-script entrypoint would hurt first-run UX while still leaving most tests green.
   - DoD:
     - Add one focused subprocess smoke test for the installed `triage` command (for example `triage --version`) and one narrow command-path assertion (for example parse stdout or missing-file error behavior).
@@ -51,7 +41,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
     - `make test`
 
 - [ ] ITK-036 (P3): Close the remaining thin helper/wrapper seams so the last uncovered lines are fully intentional
-  - Why (impact): once the user-visible write/markdown/entrypoint/file-safety seams are locked, the only remaining uncovered code should be tiny glue. It is low-risk work, but cheap coverage here keeps future refactors from regressing edge execution paths that still are not directly exercised.
+  - Why (impact): once the user-visible write/markdown/entrypoint seams are locked, the only remaining uncovered code should be tiny glue. It is low-risk work, but cheap coverage here keeps future refactors from regressing edge execution paths that still are not directly exercised.
   - DoD:
     - Add helper coverage for `_read_stdin_lines()` when `sys.stdin` has no `.buffer`, `_read_events_for_parse([])` failing deterministically, and `_apply_event_filters(...)` rejecting non-matching correlation IDs while returning the full ordered input when no filters are supplied.
     - Add direct wrapper coverage for `parse_file(...)` delegating to `parse_file_with_summary(...)`.
@@ -66,6 +56,7 @@ Priority refresh basis: `docs/status.md` + `docs/critical_todo.md` + live repo/d
 
 Recently completed (kept brief so the live queue stays short):
 
+- [x] ITK-041 (P1): Prove strict parse-gate failures never create or overwrite output files
 - [x] ITK-038 (P1): Restore README quickstart/write-path parity by locking `triage summary --out <file>` at the CLI contract layer
 - [x] ITK-034 (P1): Harden operator-facing markdown rendering against pipe/newline corruption in timeline and runbook output
 - [x] ITK-037 (P2): Add a compact end-to-end CLI contract fixture for alias-shaped JSON logs

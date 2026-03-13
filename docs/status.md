@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-040 completed (runbook titles and inline-code markdown now stay readable when dynamic values contain embedded newlines or literal backticks):
+  - Updated `triage_toolkit/markdown.py` with a small shared `markdown_code_span(...)` helper plus an optional backtick-escaping mode for plain markdown text, keeping the existing newline flattening and pipe escaping behavior intact.
+  - Updated `triage_toolkit/runbook.py` so the H1 title now flattens embedded newlines and escapes literal backticks, while runbook inline-code surfaces (top signatures, representative correlation IDs, source labels/provenance, and code-styled level/component fields) now choose a safe code fence width automatically instead of assuming a single backtick wrapper.
+  - Expanded `tests/test_runbook.py` with focused regressions for newline/backtick-heavy titles and backtick-heavy dynamic fields across the runbook symptoms/evidence/example surfaces.
+- Why:
+  - The remaining operator-facing markdown risk was broken runbook formatting when titles or inline-code values themselves contained backticks; the underlying incident data stayed correct, but the rendered handoff artifact could become misleading or hard to read.
+- Risks / follow-ups:
+  - This milestone intentionally stays narrow to runbook markdown/title rendering; the next queued gap is ITK-039 for installed `triage` console-script parity with the documented quickstart.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_runbook.py -k "title or backtick or markdown or source"` ✅ (7 passed)
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "runbook"` ✅ (12 passed)
+  - `make lint` ✅
+  - `make test` ✅ (199 passed)
+
 - ITK-041 completed (strict parse-gate failures are now proven file-safe across all write-capable CLI commands):
   - Expanded `tests/test_cli.py` with focused parametrized regressions covering `parse`, `summary`, `timeline`, and `runbook` under `--strict --out <file>` failure conditions.
   - Added one contract test that points each command at a nested, non-existent output path and asserts the strict gate exits with code `2`, emits the stable `parsed_lines == 0` error fragment, and leaves both the output file and its parent directory absent.

@@ -4,25 +4,15 @@ Repo root reviewed: `/home/node/.openclaw/workspace/projects/auto-senior-pm/repo
 Scope: docs-only priority refresh so `docs/ai_todo.md` stays aligned with the live repo state.
 
 ## Repo evidence reviewed
-- `README.md`
-- `pyproject.toml`
-- `docs/AI_EDIT_POLICY.md`
 - `docs/status.md`
 - `docs/critical_todo.md`
 - `docs/ai_todo.md` (pre-refresh)
 - `docs/deep_research_auto.md` (pre-refresh)
 - `docs/user_todo.md`
-- `triage_toolkit/cli.py`
-- `triage_toolkit/parser.py`
-- `triage_toolkit/timeline.py`
-- `triage_toolkit/runbook.py`
-- `triage_toolkit/markdown.py`
-- `tests/test_cli.py`
-- `tests/test_cli_helpers.py`
-- `tests/test_main.py`
+- `README.md`
+- `docs/AI_EDIT_POLICY.md`
 - live file-existence checks for `docs/status.md`, `docs/critical_todo.md`, `docs/ai_todo.md`, and `docs/deep_research_auto.md`
 - live repo status via `git status --short --branch`
-- live verification via `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing -q`
 
 ## Docs file existence check
 - `docs/status.md` ✅ exists
@@ -35,67 +25,50 @@ Missing `status` / `critical_todo` files would have been acceptable per the main
 ## Live repo snapshot used for reprioritization
 - `git status --short --branch` showed a clean tree on entry (`## main...origin/main`)
 - `docs/user_todo.md` exists and has no open checkbox items
-- live coverage check:
-  - `.venv/bin/python -m pytest --cov=triage_toolkit --cov-report=term-missing -q` ✅ (`188 passed`)
-  - total coverage: `99%`
-  - uncovered lines are now limited to:
-    - `triage_toolkit/cli.py:102,148,264,397,522`
-    - `triage_toolkit/parser.py:265-266`
-- live file structure still confirms a deliberately small package with one direct runtime dependency (`typer==0.21.1`) and dense direct coverage already in place for parser, evidence, redaction, summary-contract, timeline, runbook, and parity behavior
+- `docs/status.md` is the current source of truth for the last green verification:
+  - `make lint` ✅
+  - `make test` ✅ (`197 passed`)
+- `docs/critical_todo.md` is present and currently empty (`- (none)`)
 
 ## Evidence-based roadmap conclusions
-### 1) `ITK-034` is done; stop treating markdown pipe/newline hardening as open work
-`docs/status.md` now shows the pipe/newline milestone completed, including:
-- shared `triage_toolkit/markdown.py`
-- timeline/runbook renderer updates
-- focused regression tests for newline/pipe-heavy dynamic fields
+
+### 1) ITK-041 is complete and should not stay in the active queue
+`docs/status.md` now records the strict parse-gate file-safety milestone as done, including focused CLI regressions that prove failed `--strict --out <file>` runs do not create fresh outputs or overwrite sentinel files.
 
 Conclusion:
-- previous roadmap notes that still positioned `ITK-034` as the next open item were stale and needed correction.
+- strict-mode output-file safety is no longer an open planning priority.
 
-### 2) The highest remaining user-visible gap is now `summary --out <file>` parity
-Repo evidence:
-- README quickstart documents file-output flows for all commands
-- `triage summary` already has stdout/contract coverage
-- the summary file-success echo branch in `cli.py` remains uncovered
+### 2) ITK-038 is also complete, so summary file-output parity is already locked
+`docs/status.md` records the README-advertised `triage summary --out <file>` path as complete and verified.
 
 Conclusion:
-- the next task should be a narrow CLI contract test for `triage summary --out <file>` rather than more generic coverage chasing.
+- the active queue should stop carrying summary write-path parity as an open item.
 
-### 3) Remaining product-risk work is mostly around operator-facing markdown/code-span safety and real entrypoints
-Repo evidence:
-- runbook output still embeds several dynamic values inside backticks and a raw `# {title}` heading
-- package metadata defines the installed `triage` console script, but current direct subprocess coverage is stronger for `python -m triage_toolkit` than for the installed wrapper
-- strict-gate error signaling is covered, but file-output safety on failing strict runs is not directly locked yet
+### 3) The highest remaining engineering risk is still operator-facing runbook markdown safety
+The live docs state that pipe/newline corruption is fixed, but the remaining open item still points at literal backticks and embedded newlines inside runbook titles and inline-code fields.
 
 Conclusion:
-- after `ITK-038`, the best remaining tasks are contract/surface hardening, not broad parser changes.
+- ITK-040 should remain the first unchecked top-level task.
 
-### 4) Pure coverage mop-up is real but lower priority now
-The last uncovered lines are thin glue only:
-- `_read_stdin_lines()` fallback without `.buffer`
-- `_read_events_for_parse([])`
-- correlation-ID filter miss path in `_apply_event_filters(...)`
-- summary write-success echo path
-- `triage_toolkit.cli` script entrypoint
-- `parse_file(...)`
+### 4) After markdown safety, the remaining work is entrypoint parity and tiny intentional coverage seams
+With no critical blockers queued, the remaining queue should stay short and concrete:
+- installed `triage` console-script parity with the README quickstart
+- direct coverage for the last thin helper/wrapper/entrypoint branches
 
 Conclusion:
-- this is worth doing, but only after the remaining user-visible seams are locked.
+- ITK-039 should stay ahead of ITK-036 because it protects first-run user experience rather than only coverage neatness.
 
 ## Refreshed priority order
-1. `ITK-038` — lock `triage summary --out <file>` at the CLI contract layer
-2. `ITK-040` — harden remaining runbook markdown/code-span safety for titles/backticks
-3. `ITK-039` — lock installed `triage` console-script parity with the documented quickstart
-4. `ITK-041` — prove strict parse-gate failures never create or overwrite output files
-5. `ITK-036` — finish the remaining thin helper/wrapper seams
+1. `ITK-040` — harden remaining runbook markdown/code-span safety for titles/backticks/newlines
+2. `ITK-039` — lock installed `triage` console-script parity with the documented quickstart
+3. `ITK-036` — close the remaining thin helper/wrapper seams so the last uncovered lines are intentional
 
 ## What changed vs the previous research note
-- `ITK-034` moved from “next open item” to completed work.
-- The queue now stays at 5 concrete open items instead of drifting down to only 2.
-- Coverage-only cleanup is intentionally pushed below the remaining user-visible CLI/markdown/entrypoint seams.
+- Removed stale open-priority treatment of `ITK-038` and `ITK-041`; both are completed in `docs/status.md`.
+- Reduced the live queue to 3 concrete open items so it stays actionable instead of mixing completed and open work.
+- Kept the queue ordered by user-visible risk first, coverage mop-up last.
 
 ## Risks / blockers
 - `docs/critical_todo.md` is present and empty (`- (none)`), so there is no critical blocker escalation right now.
-- Main planning risk is reverting to vanity coverage work before the remaining documented quickstart/entrypoint/file-safety contracts are locked.
-- Console-script smoke tests can become environment-sensitive if implemented carelessly; keep them focused on the active dev install rather than hardcoded paths.
+- Main planning risk is letting completed milestones linger near the top of `docs/ai_todo.md`, which makes the deterministic “first unchecked top-level item” workflow noisier than it needs to be.
+- `ITK-039` can be implemented badly if the test hardcodes an environment-specific script path; keep it virtualenv-aware and narrow.
