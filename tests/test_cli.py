@@ -647,6 +647,60 @@ def test_summary_stdout_returns_machine_readable_contract(tmp_path):
     assert "per_source" not in payload["parse_summary"]
 
 
+def test_summary_writes_output_file_and_reports_success(tmp_path):
+    sample = tmp_path / "sample.log"
+    sample.write_text(
+        "\n".join(
+            [
+                "2025-01-01T00:00:01Z INFO api: request accepted cid=c-1",
+                "2025-01-01T00:00:02Z ERROR db: connection timeout cid=c-2",
+                "2025-01-01T00:00:03Z ERROR db: connection timeout",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "summary.json"
+
+    result = runner.invoke(app, ["summary", str(sample), "--out", str(output)])
+
+    assert result.exit_code == 0
+    assert f"Wrote incident summary to {output}" in result.output
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload == {
+        "schema_version": cli_module.SUMMARY_SCHEMA_VERSION,
+        "incident_window": {
+            "start": "2025-01-01T00:00:01+00:00",
+            "end": "2025-01-01T00:00:03+00:00",
+        },
+        "event_count": 3,
+        "error_count": 2,
+        "top_components": [
+            {"name": "db", "count": 2},
+            {"name": "api", "count": 1},
+        ],
+        "top_error_signatures": [
+            {"name": "connection timeout cid=<id>", "count": 1},
+            {"name": "connection timeout", "count": 1},
+        ],
+        "evidence_by_source": [
+            {"source": str(sample), "count": 2},
+        ],
+        "correlation_id_coverage": {
+            "covered_events": 2,
+            "total_events": 3,
+            "coverage_ratio": 0.666667,
+        },
+        "parse_summary": {
+            "total_lines": 3,
+            "parsed_lines": 3,
+            "dropped_lines": 0,
+            "drop_ratio": 0.0,
+            "dropped_reasons": {},
+        },
+    }
+
+
 def test_summary_multiple_inputs_merges_counts_and_incident_window(tmp_path):
     source_a = tmp_path / "a.log"
     source_b = tmp_path / "b.log"

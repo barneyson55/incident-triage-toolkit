@@ -9,6 +9,20 @@
 - If `docs/user_todo.md` has any unchecked items → STOP.
 
 ## Latest updates
+- ITK-038 completed (README quickstart/write-path parity is now locked for `triage summary --out <file>` at the CLI contract layer):
+  - Expanded `tests/test_cli.py` with a focused `test_summary_writes_output_file_and_reports_success(...)` regression that exercises the documented file-output path instead of stdout-only coverage.
+  - The new test asserts the stable success message (`Wrote incident summary to <file>`) and locks the written JSON payload shape for `schema_version`, incident window, event/error counts, top components, top error signatures, evidence-by-source, correlation coverage, and the raw `parse_summary` contract.
+  - Kept the milestone coverage-only and fixture-light: no production code or public contract changes were required because the existing CLI behavior already matched the README quickstart.
+- Why:
+  - `triage summary` was the remaining README-advertised write path without a focused CLI file-output regression, so a broken `--out <file>` contract could have slipped through while stdout-only tests stayed green.
+- Risks / follow-ups:
+  - This milestone intentionally targets only the summary write path; the next queued user-facing gap is installed `triage` console-script parity plus the remaining runbook markdown/backtick edge cases already tracked in `docs/ai_todo.md`.
+- Verification run:
+  - `.venv/bin/python -m pytest -q tests/test_cli.py -k "summary and out"` ✅ (3 passed)
+  - `.venv/bin/python -m pytest -q tests/test_summary_contract.py -k "summary"` ✅ (6 passed)
+  - `make lint` ✅
+  - `make test` ✅ (189 passed)
+
 - ITK-034 completed (timeline/runbook markdown rendering now stays single-line and pipe-safe across operator-facing dynamic fields):
   - Added `triage_toolkit/markdown.py` with a tiny shared `markdown_safe_text(...)` helper that flattens embedded CR/LF newlines and escapes literal `|` characters.
   - Updated `triage_toolkit/timeline.py` so event table cells now sanitize `source`, `level`, `component`, and `message`, and the evidence/component sections sanitize dynamic signature/source/component text too.
@@ -242,4 +256,4 @@
   - No product/test files were changed yet for ITK-028 during this auth-recovery step.
 
 ## Next
-- Start ITK-038 by locking `triage summary --out <file>` at the CLI contract layer so the README quickstart write path is covered end to end.
+- Start ITK-040 by hardening the remaining runbook title / inline-code markdown safety for literal backticks and embedded newlines.
